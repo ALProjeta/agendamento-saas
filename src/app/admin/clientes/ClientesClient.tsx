@@ -37,7 +37,7 @@ function initials(nome: string) {
 }
 
 // Gera uma cor de avatar consistente baseada no nome
-const AVATAR_COLORS = [
+const AVATAR_COLORS: [string, string][] = [
   ['#F3E8FF', '#7C3AED'],
   ['#FEF3C7', '#D97706'],
   ['#DCFCE7', '#16A34A'],

@@ -97,7 +97,7 @@ export default function Page() {
     const limiteHoje = agora.getTime() + 4 * 60 * 60 * 1000
 
     Promise.all([
-      supabase.from('disponibilidades').select('data, hora_inicio, hora_fim')
+      supabase.from('disponibilidades').select('id, data, hora_inicio, hora_fim')
         .gte('data', hoje).lte('data', limFim).order('data').order('hora_inicio'),
       supabase.from('agendamentos').select('data, hora_inicio, hora_fim')
         .gte('data', hoje).lte('data', limFim).neq('status', 'cancelado'),
