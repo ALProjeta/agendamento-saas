@@ -8,8 +8,7 @@ export default async function BloqueiosPage() {
   // Limpeza passiva: remove bloqueios encerrados há mais de 60 dias
   const limite60d = new Date()
   limite60d.setDate(limite60d.getDate() - 60)
-  supabase.from('bloqueios').delete().lt('data_fim', limite60d.toISOString().slice(0, 10))
-    .then(() => {}).catch(() => {})
+  void supabase.from('bloqueios').delete().lt('data_fim', limite60d.toISOString().slice(0, 10))
 
   const { data } = await supabase
     .from('bloqueios')
