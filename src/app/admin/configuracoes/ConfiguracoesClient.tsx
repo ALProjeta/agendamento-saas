@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { salvarConfig } from '@/app/actions/configuracoes'
+import { alterarSenha } from '@/app/actions/alterar-senha'
 
 const GOLD = '#D3AF37'
 
@@ -102,6 +103,32 @@ export default function ConfiguracoesClient({ config, tableNotFound }: Props) {
 
   const [pending,  setPending]  = useState(false)
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const [senhaAtual,    setSenhaAtual]    = useState('')
+  const [novaSenha,     setNovaSenha]     = useState('')
+  const [confirmaSenha, setConfirmaSenha] = useState('')
+  const [senhaPending,  setSenhaPending]  = useState(false)
+  const [senhaFeedback, setSenhaFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  async function trocarSenha() {
+    if (novaSenha !== confirmaSenha) {
+      setSenhaFeedback({ ok: false, msg: 'As senhas não coincidem.' })
+      return
+    }
+    setSenhaPending(true)
+    setSenhaFeedback(null)
+    const r = await alterarSenha(senhaAtual, novaSenha)
+    setSenhaPending(false)
+    if (r.ok) {
+      setSenhaAtual('')
+      setNovaSenha('')
+      setConfirmaSenha('')
+      setSenhaFeedback({ ok: true, msg: 'Senha alterada com sucesso!' })
+      setTimeout(() => setSenhaFeedback(null), 3000)
+    } else {
+      setSenhaFeedback({ ok: false, msg: r.erro ?? 'Erro ao alterar senha.' })
+    }
+  }
 
   async function salvar() {
     setPending(true)
@@ -239,6 +266,59 @@ export default function ConfiguracoesClient({ config, tableNotFound }: Props) {
 
               <div className="px-5 py-3">
                 <p className="text-xs text-zinc-600">Pagamento presencialmente no dia do atendimento.</p>
+              </div>
+            </Section>
+
+            {/* Segurança */}
+            <Section title="Segurança">
+              <Field label="Senha atual">
+                <input
+                  type="password"
+                  value={senhaAtual}
+                  onChange={e => setSenhaAtual(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-10 rounded-xl bg-[#181818] border border-[#2C2C2C] px-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#D3AF37]/50"
+                />
+              </Field>
+              <Field label="Nova senha" hint="Mínimo 6 caracteres.">
+                <input
+                  type="password"
+                  value={novaSenha}
+                  onChange={e => setNovaSenha(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-10 rounded-xl bg-[#181818] border border-[#2C2C2C] px-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#D3AF37]/50"
+                />
+              </Field>
+              <Field label="Confirmar nova senha">
+                <input
+                  type="password"
+                  value={confirmaSenha}
+                  onChange={e => setConfirmaSenha(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-10 rounded-xl bg-[#181818] border border-[#2C2C2C] px-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#D3AF37]/50"
+                />
+              </Field>
+              {senhaFeedback && (
+                <div
+                  className="mx-5 mb-4 rounded-xl px-4 py-3 text-sm font-medium"
+                  style={{
+                    backgroundColor: senhaFeedback.ok ? '#D3AF3715' : '#EF444415',
+                    color:           senhaFeedback.ok ? GOLD        : '#EF4444',
+                    border:          `1px solid ${senhaFeedback.ok ? GOLD + '40' : '#EF444440'}`,
+                  }}
+                >
+                  {senhaFeedback.ok ? '✓ ' : '✕ '}{senhaFeedback.msg}
+                </div>
+              )}
+              <div className="px-5 pb-4">
+                <button
+                  onClick={trocarSenha}
+                  disabled={senhaPending || !senhaAtual || !novaSenha || !confirmaSenha}
+                  className="w-full h-11 rounded-xl text-[13px] font-bold transition-all disabled:opacity-40 border"
+                  style={{ borderColor: GOLD, color: GOLD }}
+                >
+                  {senhaPending ? 'Alterando…' : 'Alterar senha'}
+                </button>
               </div>
             </Section>
 

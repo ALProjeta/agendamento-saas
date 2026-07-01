@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { getAdminPassword } from './get-admin-password'
 
 async function sha256(text: string): Promise<string> {
   const bytes = new TextEncoder().encode(text)
@@ -20,7 +21,7 @@ function safeEqual(a: string, b: string): boolean {
 export async function verificarAdmin(): Promise<void> {
   const cookieStore = await cookies()
   const session = cookieStore.get('admin_session')?.value
-  const adminPassword = process.env.ADMIN_PASSWORD
+  const adminPassword = await getAdminPassword()
 
   if (!adminPassword || !session) throw new Error('Não autorizado')
 

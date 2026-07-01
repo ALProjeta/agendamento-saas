@@ -3,6 +3,7 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { checkRateLimit, resetRateLimit } from '@/lib/rate-limit'
+import { getAdminPassword } from '@/lib/get-admin-password'
 
 async function sha256(text: string): Promise<string> {
   const bytes = new TextEncoder().encode(text)
@@ -28,7 +29,7 @@ export async function login(
   }
 
   const senha = (formData.get('senha') as string | null)?.trim() ?? ''
-  const adminPassword = process.env.ADMIN_PASSWORD
+  const adminPassword = await getAdminPassword()
 
   if (!adminPassword || senha !== adminPassword) {
     return { erro: 'Senha incorreta. Tente novamente.' }
