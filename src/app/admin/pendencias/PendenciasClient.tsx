@@ -25,7 +25,7 @@ function fmtData(ds: string) {
 
 function fmtTime(t: string) { return t.slice(0, 5) }
 
-type Status = 'concluido' | 'cancelado'
+type Status = 'concluido' | 'cancelado' | 'no_show'
 
 export default function PendenciasClient({
   pendencias,
@@ -120,20 +120,29 @@ export default function PendenciasClient({
                     )}
 
                     {/* Ações */}
-                    <div className="flex gap-2">
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAtualizarStatus(p.id, 'concluido')}
+                          disabled={isPending}
+                          className="flex-1 h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                        >
+                          {isPending && pendingMap[p.id] === 'concluido' ? '...' : '✓ Concluído'}
+                        </button>
+                        <button
+                          onClick={() => handleAtualizarStatus(p.id, 'cancelado')}
+                          disabled={isPending}
+                          className="flex-1 h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-red-500/30 text-red-400 bg-red-500/5 hover:bg-red-500/15"
+                        >
+                          {isPending && pendingMap[p.id] === 'cancelado' ? '...' : '✗ Cancelado'}
+                        </button>
+                      </div>
                       <button
-                        onClick={() => handleAtualizarStatus(p.id, 'concluido')}
+                        onClick={() => handleAtualizarStatus(p.id, 'no_show')}
                         disabled={isPending}
-                        className="flex-1 h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                        className="w-full h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-zinc-700/50 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
                       >
-                        {isPending && pendingMap[p.id] === 'concluido' ? '...' : '✓ Concluído'}
-                      </button>
-                      <button
-                        onClick={() => handleAtualizarStatus(p.id, 'cancelado')}
-                        disabled={isPending}
-                        className="flex-1 h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-red-500/30 text-red-400 bg-red-500/5 hover:bg-red-500/15"
-                      >
-                        {isPending && pendingMap[p.id] === 'cancelado' ? '...' : '✗ Cancelado'}
+                        {isPending && pendingMap[p.id] === 'no_show' ? '...' : 'Não compareceu'}
                       </button>
                     </div>
                   </div>

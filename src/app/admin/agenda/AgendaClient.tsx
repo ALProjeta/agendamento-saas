@@ -11,7 +11,7 @@ export type Agendamento = {
   id: string
   cliente_nome: string
   cliente_telefone: string
-  status: 'confirmado' | 'concluido' | 'cancelado'
+  status: 'confirmado' | 'concluido' | 'cancelado' | 'no_show'
   data: string
   hora_inicio: string
   hora_fim: string
@@ -63,9 +63,10 @@ function labelData(dateStr: string) {
 }
 
 const STATUS_CFG = {
-  confirmado: { label: 'Confirmado', dot: GOLD,      badge: 'bg-[#D3AF37]/10 border-[#D3AF37]/30 text-[#D3AF37]' },
-  concluido:  { label: 'Concluído',  dot: '#10b981', badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
-  cancelado:  { label: 'Cancelado',  dot: '#ef4444', badge: 'bg-red-500/10 border-red-500/30 text-red-400' },
+  confirmado: { label: 'Confirmado',     dot: GOLD,      badge: 'bg-[#D3AF37]/10 border-[#D3AF37]/30 text-[#D3AF37]' },
+  concluido:  { label: 'Concluído',      dot: '#10b981', badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
+  cancelado:  { label: 'Cancelado',      dot: '#ef4444', badge: 'bg-red-500/10 border-red-500/30 text-red-400' },
+  no_show:    { label: 'Não compareceu', dot: '#71717a', badge: 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400' },
 }
 
 type Horario = { hora_inicio: string; hora_fim: string }
@@ -175,7 +176,7 @@ export default function AgendaClient({
     else router.push(`/admin/agenda?data=${dateStr}`)
   }
 
-  function handleStatus(id: string, status: 'concluido' | 'cancelado') {
+  function handleStatus(id: string, status: 'concluido' | 'cancelado' | 'no_show') {
     setPendingId(id)
     startTransition(async () => { await atualizarStatus(id, status); setPendingId(null) })
   }
@@ -388,28 +389,37 @@ export default function AgendaClient({
                           </div>
                         )}
                         {ag.status === 'confirmado' && (
-                          <div className="flex gap-2 pt-1">
+                          <div className="space-y-2 pt-1">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleStatus(ag.id, 'concluido')}
+                                disabled={!!pendingId}
+                                className="flex-1 h-9 rounded-xl text-xs font-bold border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all disabled:opacity-40"
+                              >
+                                Concluído
+                              </button>
+                              <button
+                                onClick={() => abrirReagendar(ag)}
+                                disabled={!!pendingId}
+                                className="flex-1 h-9 rounded-xl text-xs font-bold border transition-all disabled:opacity-40"
+                                style={{ borderColor: GOLD + '50', color: GOLD, backgroundColor: GOLD + '18' }}
+                              >
+                                Reagendar
+                              </button>
+                              <button
+                                onClick={() => handleStatus(ag.id, 'cancelado')}
+                                disabled={!!pendingId}
+                                className="flex-1 h-9 rounded-xl text-xs font-bold border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all disabled:opacity-40"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
                             <button
-                              onClick={() => handleStatus(ag.id, 'concluido')}
+                              onClick={() => handleStatus(ag.id, 'no_show')}
                               disabled={!!pendingId}
-                              className="flex-1 h-9 rounded-xl text-xs font-bold border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all disabled:opacity-40"
+                              className="w-full h-9 rounded-xl text-xs font-bold border border-zinc-700/50 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300 transition-all disabled:opacity-40"
                             >
-                              Concluído
-                            </button>
-                            <button
-                              onClick={() => abrirReagendar(ag)}
-                              disabled={!!pendingId}
-                              className="flex-1 h-9 rounded-xl text-xs font-bold border transition-all disabled:opacity-40"
-                              style={{ borderColor: GOLD + '50', color: GOLD, backgroundColor: GOLD + '18' }}
-                            >
-                              Reagendar
-                            </button>
-                            <button
-                              onClick={() => handleStatus(ag.id, 'cancelado')}
-                              disabled={!!pendingId}
-                              className="flex-1 h-9 rounded-xl text-xs font-bold border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all disabled:opacity-40"
-                            >
-                              Cancelar
+                              Não compareceu
                             </button>
                           </div>
                         )}

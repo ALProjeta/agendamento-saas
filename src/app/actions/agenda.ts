@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 
 export async function atualizarStatus(
   id: string,
-  status: 'concluido' | 'cancelado',
+  status: 'concluido' | 'cancelado' | 'no_show',
 ): Promise<{ ok: boolean; erro?: string }> {
   try {
     await verificarAdmin()
