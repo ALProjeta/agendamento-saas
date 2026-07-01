@@ -315,6 +315,14 @@ export default function Page() {
                 ))}
               </div>
             )}
+
+            <a
+              href="/manutencao"
+              className="flex items-center justify-center gap-2 mt-6 py-3 text-[13px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <span>Já é cliente?</span>
+              <span className="font-semibold" style={{ color: GOLD }}>Agendar manutenção →</span>
+            </a>
           </div>
         )}
 
