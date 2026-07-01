@@ -263,6 +263,9 @@ export default function Page() {
         {/* STEP 1 — Serviço */}
         {step === 1 && (
           <div className="py-10">
+            <div className="flex justify-center mb-8">
+              <img src="/logo.jpeg" alt="Logo" className="h-24 w-auto" />
+            </div>
             <div className="mb-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.25em] mb-3" style={{ color: GOLD }}>
                 Agendamento Online
