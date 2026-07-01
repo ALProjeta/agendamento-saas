@@ -239,8 +239,11 @@ export default function Page() {
 
       <header className="sticky top-0 z-20 bg-black">
         <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center">
-            <img src="/logo.jpeg" alt="Logo" className="h-10 w-auto" />
+          <div className="flex items-center gap-3">
+            <div className="w-0.5 h-6 rounded-full" style={{ backgroundColor: GOLD }} />
+            <span className="text-white text-lg font-semibold tracking-tight" style={{ fontFamily: 'var(--font-playfair)' }}>
+              {config.studio_nome || process.env.NEXT_PUBLIC_STUDIO_NAME || 'Studio'}
+            </span>
           </div>
           {step > 1 && step < 5 && (
             <button
@@ -263,8 +266,8 @@ export default function Page() {
         {/* STEP 1 — Serviço */}
         {step === 1 && (
           <div className="py-10">
-            <div className="flex justify-center mb-8">
-              <img src="/logo.jpeg" alt="Logo" className="h-24 w-auto" />
+            <div className="flex justify-center mb-6">
+              <img src="/logo.jpeg" alt="Logo" style={{ width: '180px', height: 'auto' }} />
             </div>
             <div className="mb-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.25em] mb-3" style={{ color: GOLD }}>

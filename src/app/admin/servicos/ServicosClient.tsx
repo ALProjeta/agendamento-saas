@@ -157,9 +157,8 @@ export default function ServicosClient({ servicos, studioNome }: { servicos: Ser
     <div className="min-h-screen bg-[#0A0A0A]">
       <header className="bg-black sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-0.5 h-6 rounded-full" style={{ backgroundColor: GOLD }} />
-            <span className="text-white text-lg font-semibold" style={{ fontFamily: 'var(--font-playfair)' }}>{studioNome}</span>
+          <div className="flex items-center">
+            <img src="/logo.jpeg" alt="Logo" style={{ height: '36px', width: 'auto' }} />
           </div>
           <div className="flex items-center gap-4">
             <span className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Servicos</span>
