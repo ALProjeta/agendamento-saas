@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 export type Servico = {
-  id: string; nome: string; duracao_minutos: number; preco: number; ativo: boolean
+  id: string; nome: string; duracao_minutos: number; preco: number; ativo: boolean; apenas_manutencao: boolean
 }
 
 const GOLD = '#D3AF37'
@@ -21,11 +21,12 @@ function ServicoModal({ servico, onClose, onFeedback }: {
   servico: Servico | null; onClose: () => void; onFeedback: (f: Feedback) => void
 }) {
   const isEdit = servico !== null
-  const [nome, setNome]       = useState(servico?.nome ?? '')
-  const [duracao, setDuracao] = useState(servico ? String(servico.duracao_minutos) : '')
-  const [preco, setPreco]     = useState(servico ? String(servico.preco) : '')
-  const [erroLocal, setErroLocal] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
+  const [nome, setNome]               = useState(servico?.nome ?? '')
+  const [duracao, setDuracao]         = useState(servico ? String(servico.duracao_minutos) : '')
+  const [preco, setPreco]             = useState(servico ? String(servico.preco) : '')
+  const [apenasManut, setApenasManut] = useState(servico?.apenas_manutencao ?? false)
+  const [erroLocal, setErroLocal]     = useState<string | null>(null)
+  const [pending, setPending]         = useState(false)
   const primeiroInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -42,7 +43,7 @@ function ServicoModal({ servico, onClose, onFeedback }: {
     if (!dur || dur <= 0) return setErroLocal('Duracao deve ser maior que zero.')
     if (isNaN(prc) || prc <= 0) return setErroLocal('Preco deve ser maior que zero.')
     setErroLocal(null); setPending(true)
-    const result = isEdit ? await atualizarServico(servico.id, nome, dur, prc) : await criarServico(nome, dur, prc)
+    const result = isEdit ? await atualizarServico(servico.id, nome, dur, prc, apenasManut) : await criarServico(nome, dur, prc, apenasManut)
     setPending(false)
     if (result.ok) { onFeedback({ tipo: 'ok', msg: isEdit ? 'Servico atualizado!' : 'Servico criado!' }); onClose() }
     else setErroLocal(result.erro)
@@ -80,6 +81,31 @@ function ServicoModal({ servico, onClose, onFeedback }: {
               <Input type="number" min="0" step="0.01" value={preco} onChange={e => setPreco(e.target.value)} placeholder="150,00" className={INPUT_CLS} />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setApenasManut(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all"
+            style={{
+              borderColor: apenasManut ? GOLD + '60' : '#2C2C2C',
+              backgroundColor: apenasManut ? GOLD + '10' : '#181818',
+            }}
+          >
+            <div className="text-left">
+              <p className="text-[13px] font-semibold" style={{ color: apenasManut ? GOLD : '#A1A1AA' }}>
+                Serviço de manutenção
+              </p>
+              <p className="text-[11px] text-zinc-600 mt-0.5">Visível apenas na página exclusiva para clientes recorrentes</p>
+            </div>
+            <div
+              className="relative w-10 h-5 rounded-full transition-all duration-200 flex-shrink-0 ml-3"
+              style={{ backgroundColor: apenasManut ? GOLD : '#2C2C2C' }}
+            >
+              <span
+                className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all duration-200 shadow-sm"
+                style={{ left: apenasManut ? '22px' : '2px' }}
+              />
+            </div>
+          </button>
           {erroLocal && <p className="text-sm text-red-400 flex items-center gap-1.5"><span>warning</span> {erroLocal}</p>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 h-11 rounded-xl border border-[#2C2C2C] text-zinc-400 hover:text-white hover:border-[#3A3A3A] transition-all font-semibold">
@@ -112,9 +138,16 @@ function ServicoCard({ servico, onEdit, onToggle, togglePending }: {
     <div className="flex items-center gap-3 px-5 py-4">
       <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: servico.ativo ? GOLD : '#2C2C2C' }} />
       <div className="flex-1 min-w-0">
-        <p className={cn('font-semibold text-[15px] leading-snug truncate', servico.ativo ? 'text-white' : 'text-zinc-600 line-through')}>
-          {servico.nome}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className={cn('font-semibold text-[15px] leading-snug truncate', servico.ativo ? 'text-white' : 'text-zinc-600 line-through')}>
+            {servico.nome}
+          </p>
+          {servico.apenas_manutencao && (
+            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ backgroundColor: GOLD + '20', color: GOLD }}>
+              Manutenção
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-[12px] text-zinc-600">{servico.duracao_minutos} min</span>
           <span className="text-zinc-700">.</span>

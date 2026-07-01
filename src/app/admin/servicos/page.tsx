@@ -7,7 +7,7 @@ export default async function ServicosPage() {
 
   const { data } = await supabase
     .from('servicos')
-    .select('id, nome, duracao_minutos, preco, ativo')
+    .select('id, nome, duracao_minutos, preco, ativo, apenas_manutencao')
     .order('ativo', { ascending: false })
     .order('nome')
 
