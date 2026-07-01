@@ -239,11 +239,8 @@ export default function Page() {
 
       <header className="sticky top-0 z-20 bg-black">
         <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-0.5 h-6 rounded-full" style={{ backgroundColor: GOLD }} />
-            <span className="text-white text-lg font-semibold tracking-tight" style={{ fontFamily: 'var(--font-playfair)' }}>
-              {config.studio_nome || process.env.NEXT_PUBLIC_STUDIO_NAME || 'Studio'}
-            </span>
+          <div className="flex items-center">
+            <img src="/logo.jpeg" alt="Logo" className="h-10 w-auto" />
           </div>
           {step > 1 && step < 5 && (
             <button
