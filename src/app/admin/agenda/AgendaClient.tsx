@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { atualizarStatus } from '@/app/actions/agenda'
 import { getHorariosDisponiveis, reagendar } from '@/app/actions/reagendar'
+import { verificarEncaixe, agendarManual, type EncaixeCheck } from '@/app/actions/encaixe'
 import { cn } from '@/lib/utils'
 
 export type Agendamento = {
@@ -21,6 +22,12 @@ export type Agendamento = {
 export type DayData = {
   dateStr: string
   agendamentos: Agendamento[]
+}
+
+export type ServicoEncaixe = {
+  id: string
+  nome: string
+  duracao_minutos: number
 }
 
 const GOLD = '#D3AF37'
@@ -74,15 +81,30 @@ export default function AgendaClient({
   dateStr,
   modo,
   studioNome,
+  servicos,
 }: {
   diasData: DayData[]
   dateStr: string
   modo: 'dia' | 'semana'
   studioNome: string
+  servicos: ServicoEncaixe[]
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [pendingId, setPendingId] = useState<string | null>(null)
+
+  const [encaixeAberto, setEncaixeAberto]             = useState(false)
+  const [encNome, setEncNome]                         = useState('')
+  const [encTelefone, setEncTelefone]                 = useState('')
+  const [encServicoId, setEncServicoId]               = useState('')
+  const [encData, setEncData]                         = useState(dateStr)
+  const [encHora, setEncHora]                         = useState('')
+  const [encObs, setEncObs]                           = useState('')
+  const [encCheck, setEncCheck]                       = useState<EncaixeCheck | null>(null)
+  const [encChecking, setEncChecking]                 = useState(false)
+  const [encSaving, setEncSaving]                     = useState(false)
+  const [encErro, setEncErro]                         = useState<string | null>(null)
+  const checkTimerRef                                 = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [reagendarTarget, setReagendarTarget]       = useState<Agendamento | null>(null)
   const [reagendarMes, setReagendarMes]             = useState<Date>(() => { const d = new Date(); d.setDate(1); return d })
@@ -93,6 +115,44 @@ export default function AgendaClient({
   const [reagendarFeedback, setReagendarFeedback]   = useState<string | null>(null)
 
   const touchRef = useRef({ x: 0, y: 0 })
+
+  const encServico = servicos.find(s => s.id === encServicoId) ?? null
+  const encHoraFim = (() => {
+    if (!encHora || !encServico) return ''
+    const [h, m] = encHora.split(':').map(Number)
+    const total = h * 60 + m + encServico.duracao_minutos
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+  })()
+
+  useEffect(() => {
+    if (!encData || !encHora || !encHoraFim) { setEncCheck(null); return }
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current)
+    setEncChecking(true)
+    checkTimerRef.current = setTimeout(async () => {
+      const result = await verificarEncaixe(encData, encHora, encHoraFim)
+      setEncCheck(result)
+      setEncChecking(false)
+    }, 500)
+    return () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current) }
+  }, [encData, encHora, encHoraFim])
+
+  function resetEncaixe() {
+    setEncaixeAberto(false)
+    setEncNome(''); setEncTelefone(''); setEncServicoId('')
+    setEncData(dateStr); setEncHora(''); setEncObs('')
+    setEncCheck(null); setEncErro(null)
+  }
+
+  async function handleEncaixe() {
+    if (!encNome.trim() || !encTelefone.trim() || !encServicoId || !encData || !encHora || !encHoraFim) {
+      return setEncErro('Preencha todos os campos obrigatórios.')
+    }
+    setEncSaving(true)
+    const r = await agendarManual(encNome, encTelefone, encServicoId, encData, encHora, encHoraFim, encObs)
+    setEncSaving(false)
+    if (r.ok) { resetEncaixe() }
+    else setEncErro(r.erro ?? 'Erro ao salvar.')
+  }
   const hoje        = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
   const agendamentos = diasData.flatMap(d => d.agendamentos)
   const ativos       = agendamentos.filter(a => a.status !== 'cancelado')
@@ -199,6 +259,13 @@ export default function AgendaClient({
             <span className="text-white text-lg font-semibold" style={{ fontFamily: 'var(--font-playfair)' }}>{studioNome}</span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setEncaixeAberto(true); setEncData(dateStr) }}
+              className="h-8 px-3 rounded-full text-[12px] font-bold hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: GOLD, color: '#000' }}
+            >
+              + Encaixe
+            </button>
             <button
               onClick={toggleModo}
               className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] px-3 py-1.5 rounded-full border transition-all"
@@ -423,6 +490,161 @@ export default function AgendaClient({
           </div>
         )}
       </div>
+
+      {encaixeAberto && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm"
+          onClick={resetEncaixe}
+        >
+          <div
+            className="w-full max-w-lg bg-[#0E0E0E] rounded-t-3xl border-t border-[#1E1E1E] overflow-y-auto"
+            style={{ maxHeight: '90vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1A1A1A] sticky top-0 bg-[#0E0E0E] z-10">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">Agendamento manual</p>
+                <p className="text-white font-semibold mt-0.5">Encaixe</p>
+              </div>
+              <button
+                onClick={resetEncaixe}
+                className="w-8 h-8 rounded-full border border-[#2C2C2C] flex items-center justify-center text-zinc-500 hover:text-white hover:border-[#444] transition-all"
+              >
+                &#x2715;
+              </button>
+            </div>
+
+            <div className="px-5 py-5 space-y-4">
+
+              {/* Serviço */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Serviço *</label>
+                <div className="relative">
+                  <select
+                    value={encServicoId}
+                    onChange={e => { setEncServicoId(e.target.value); setEncCheck(null) }}
+                    className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all appearance-none"
+                  >
+                    <option value="">Selecione o serviço</option>
+                    {servicos.map(s => (
+                      <option key={s.id} value={s.id}>{s.nome} ({s.duracao_minutos} min)</option>
+                    ))}
+                  </select>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">▾</span>
+                </div>
+              </div>
+
+              {/* Data e Hora */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Data *</label>
+                  <input
+                    type="date"
+                    value={encData}
+                    onChange={e => { setEncData(e.target.value); setEncCheck(null) }}
+                    className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Início *</label>
+                  <input
+                    type="time"
+                    value={encHora}
+                    onChange={e => { setEncHora(e.target.value); setEncCheck(null) }}
+                    className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Aviso de disponibilidade */}
+              {encServicoId && encData && encHora && (
+                <div className={cn(
+                  'rounded-xl px-4 py-3 text-sm font-medium flex items-start gap-2.5',
+                  encChecking && 'bg-[#1A1A1A] border border-[#2C2C2C] text-zinc-500',
+                  !encChecking && encCheck?.status === 'livre' && 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400',
+                  !encChecking && encCheck?.status === 'sem-disponibilidade' && 'bg-amber-500/10 border border-amber-500/30 text-amber-400',
+                  !encChecking && encCheck?.status === 'conflito' && 'bg-red-500/10 border border-red-500/30 text-red-400',
+                )}>
+                  {encChecking ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />
+                      <span>Verificando disponibilidade...</span>
+                    </>
+                  ) : encCheck?.status === 'livre' ? (
+                    <><span className="shrink-0">✓</span><span>Horário livre — dentro de uma janela de disponibilidade.</span></>
+                  ) : encCheck?.status === 'sem-disponibilidade' ? (
+                    <><span className="shrink-0">⚠</span><span>Sem disponibilidade aberta para este horário. Clientes não conseguiriam agendar aqui, mas você pode prosseguir.</span></>
+                  ) : encCheck?.status === 'conflito' ? (
+                    <><span className="shrink-0">✗</span><span>Conflito: <strong>{(encCheck as { conflitoCom: string }).conflitoCom}</strong> já tem agendamento neste horário. Você pode prosseguir mesmo assim.</span></>
+                  ) : null}
+                </div>
+              )}
+              {encHoraFim && encServico && (
+                <p className="text-[11px] text-zinc-600 -mt-2">
+                  Término previsto às {encHoraFim} ({encServico.duracao_minutos} min)
+                </p>
+              )}
+
+              {/* Cliente */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Nome do cliente *</label>
+                <input
+                  type="text"
+                  value={encNome}
+                  onChange={e => setEncNome(e.target.value)}
+                  placeholder="Nome completo"
+                  className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#D3AF37] transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Telefone *</label>
+                <input
+                  type="tel"
+                  value={encTelefone}
+                  onChange={e => setEncTelefone(e.target.value)}
+                  placeholder="11999998888"
+                  className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#D3AF37] transition-all"
+                />
+              </div>
+
+              {/* Observação opcional */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Observação <span className="normal-case font-normal text-zinc-700">(opcional)</span></label>
+                <textarea
+                  value={encObs}
+                  onChange={e => setEncObs(e.target.value)}
+                  placeholder="Ex: cliente preferiu horário fora da agenda online"
+                  rows={2}
+                  className="w-full rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#D3AF37] transition-all resize-none"
+                />
+              </div>
+
+              {encErro && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 text-sm">
+                  {encErro}
+                </div>
+              )}
+
+              <div className="flex gap-3 pb-2">
+                <button
+                  onClick={resetEncaixe}
+                  className="flex-1 h-12 rounded-xl border border-[#2C2C2C] text-zinc-400 font-semibold hover:border-zinc-500 hover:text-white transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEncaixe}
+                  disabled={encSaving || !encNome.trim() || !encTelefone.trim() || !encServicoId || !encData || !encHora}
+                  className="flex-1 h-12 rounded-xl font-bold transition-all disabled:opacity-30"
+                  style={{ backgroundColor: GOLD, color: '#000' }}
+                >
+                  {encSaving ? 'Salvando...' : 'Confirmar encaixe'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {reagendarTarget && (
         <div

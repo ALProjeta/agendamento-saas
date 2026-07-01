@@ -1,6 +1,6 @@
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 import { getStudioNome } from '@/lib/config'
-import AgendaClient, { type Agendamento, type DayData } from './AgendaClient'
+import AgendaClient, { type Agendamento, type DayData, type ServicoEncaixe } from './AgendaClient'
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function toStr(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
@@ -24,6 +24,13 @@ export default async function AgendaPage({
 
   const supabase = createAdminSupabaseClient()
   const studioNome = await getStudioNome()
+
+  const { data: servicosRaw } = await supabase
+    .from('servicos')
+    .select('id, nome, duracao_minutos')
+    .eq('ativo', true)
+    .order('nome')
+  const servicos: ServicoEncaixe[] = (servicosRaw ?? []) as ServicoEncaixe[]
 
   let diasData: DayData[]
 
@@ -82,5 +89,5 @@ export default async function AgendaPage({
     diasData = [{ dateStr, agendamentos }]
   }
 
-  return <AgendaClient diasData={diasData} dateStr={dateStr} modo={isSemana ? 'semana' : 'dia'} studioNome={studioNome} />
+  return <AgendaClient diasData={diasData} dateStr={dateStr} modo={isSemana ? 'semana' : 'dia'} studioNome={studioNome} servicos={servicos} />
 }
