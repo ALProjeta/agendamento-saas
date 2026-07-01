@@ -21,5 +21,6 @@ export async function atualizarStatus(
 
   revalidatePath('/admin/agenda')
   revalidatePath('/admin/dashboard')
+  revalidatePath('/admin/pendencias')
   return { ok: true }
 }

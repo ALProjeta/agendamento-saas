@@ -523,6 +523,21 @@ export default function HorariosClient({
             </div>
           )}
         </div>
+
+        {/* Link para bloqueios */}
+        <a
+          href="/admin/bloqueios"
+          className="flex items-center justify-between bg-[#111111] rounded-2xl border border-[#1E1E1E] px-5 py-4 hover:border-[#2C2C2C] transition-colors"
+        >
+          <div>
+            <p className="text-[13px] font-semibold text-zinc-300">Bloquear dias</p>
+            <p className="text-[11px] text-zinc-600 mt-0.5">Férias, folgas e dias sem atendimento</p>
+          </div>
+          <svg className="w-4 h-4 text-zinc-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+
       </div>
     </div>
   )
