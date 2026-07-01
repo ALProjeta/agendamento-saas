@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { adicionarDisponibilidades, removerDisponibilidade } from '@/app/actions/horarios'
+import { adicionarDisponibilidades, removerDisponibilidade, removerDisponibilidadesDias } from '@/app/actions/horarios'
 import { cn } from '@/lib/utils'
 
 export type Disponibilidade = {
@@ -107,6 +107,9 @@ export default function HorariosClient({
   const [feedback, setFeedback]                     = useState<Feedback | null>(null)
   const [addPending, setAddPending]                 = useState(false)
   const [removePendingId, setRemovePendingId]       = useState<string | null>(null)
+  const [modoLimpeza, setModoLimpeza]               = useState(false)
+  const [diasParaLimpar, setDiasParaLimpar]         = useState<Set<string>>(new Set())
+  const [limpezaPending, setLimpezaPending]         = useState(false)
 
   useEffect(() => {
     setDiasSelecionados(new Set([dateStr]))
@@ -153,6 +156,29 @@ export default function HorariosClient({
     })
   }
 
+  function toggleDiaLimpeza(ds: string) {
+    if (!datasSet.has(ds)) return
+    setDiasParaLimpar(prev => {
+      const next = new Set(prev)
+      if (next.has(ds)) next.delete(ds); else next.add(ds)
+      return next
+    })
+  }
+
+  async function handleLimparDias() {
+    if (diasParaLimpar.size === 0) return
+    setLimpezaPending(true)
+    const r = await removerDisponibilidadesDias(Array.from(diasParaLimpar))
+    setLimpezaPending(false)
+    if (r.ok) {
+      showFeedback({ tipo: 'ok', msg: `Horários removidos de ${diasParaLimpar.size} dia${diasParaLimpar.size > 1 ? 's' : ''}!` })
+      setDiasParaLimpar(new Set())
+      setModoLimpeza(false)
+    } else {
+      showFeedback({ tipo: 'erro', msg: r.erro })
+    }
+  }
+
   function renderDias() {
     const y = mes.getFullYear(), m = mes.getMonth()
     const total    = new Date(y, m+1, 0).getDate()
@@ -163,21 +189,46 @@ export default function HorariosClient({
       const ds          = `${y}-${pad(m+1)}-${pad(d)}`
       const temDisp     = datasSet.has(ds)
       const selecionado = ds === dateStr
-      cells.push(
-        <div key={d} className="flex flex-col items-center gap-[3px] py-0.5">
-          <button
-            onClick={() => router.push(`/admin/horarios?data=${ds}`)}
-            className={cn(
-              'w-10 h-10 rounded-full text-[13px] font-medium transition-all duration-150',
-              selecionado ? 'font-bold' : 'text-zinc-300 hover:bg-[#1E1E1E]',
-            )}
-            style={selecionado ? { backgroundColor: GOLD, color: '#000' } : {}}
-          >
-            {d}
-          </button>
-          {temDisp && !selecionado && <div className="w-1 h-1 rounded-full" style={{ backgroundColor: GOLD }} />}
-        </div>
-      )
+      const marcadoLimpar = diasParaLimpar.has(ds)
+
+      if (modoLimpeza) {
+        const disponivel = temDisp
+        cells.push(
+          <div key={d} className="flex flex-col items-center gap-[3px] py-0.5">
+            <button
+              onClick={() => toggleDiaLimpeza(ds)}
+              disabled={!disponivel}
+              className={cn(
+                'w-10 h-10 rounded-full text-[13px] font-medium transition-all duration-150',
+                !disponivel && 'text-zinc-700 cursor-not-allowed',
+                disponivel && !marcadoLimpar && 'text-zinc-300 hover:bg-red-500/20 hover:text-red-400',
+                marcadoLimpar && 'font-bold text-white',
+              )}
+              style={marcadoLimpar ? { backgroundColor: '#EF4444', color: '#fff' } : {}}
+            >
+              {d}
+            </button>
+            {temDisp && !marcadoLimpar && <div className="w-1 h-1 rounded-full" style={{ backgroundColor: GOLD }} />}
+            {marcadoLimpar && <div className="w-1 h-1 rounded-full bg-red-500" />}
+          </div>
+        )
+      } else {
+        cells.push(
+          <div key={d} className="flex flex-col items-center gap-[3px] py-0.5">
+            <button
+              onClick={() => router.push(`/admin/horarios?data=${ds}`)}
+              className={cn(
+                'w-10 h-10 rounded-full text-[13px] font-medium transition-all duration-150',
+                selecionado ? 'font-bold' : 'text-zinc-300 hover:bg-[#1E1E1E]',
+              )}
+              style={selecionado ? { backgroundColor: GOLD, color: '#000' } : {}}
+            >
+              {d}
+            </button>
+            {temDisp && !selecionado && <div className="w-1 h-1 rounded-full" style={{ backgroundColor: GOLD }} />}
+          </div>
+        )
+      }
     }
     return cells
   }
@@ -229,9 +280,49 @@ export default function HorariosClient({
             ))}
           </div>
           <div className="grid grid-cols-7">{renderDias()}</div>
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#1A1A1A]">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GOLD }} />
-            <span className="text-[11px] text-zinc-600">Dias com disponibilidade cadastrada</span>
+
+          <div className="mt-3 pt-3 border-t border-[#1A1A1A] space-y-3">
+            {!modoLimpeza ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GOLD }} />
+                  <span className="text-[11px] text-zinc-600">Dias com disponibilidade</span>
+                </div>
+                {datasComDisp.length > 0 && (
+                  <button
+                    onClick={() => { setModoLimpeza(true); setDiasParaLimpar(new Set()) }}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-full border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all"
+                  >
+                    🗑 Limpar dias
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <p className="text-[12px] text-zinc-400 leading-relaxed">
+                  Selecione os dias com <span className="text-red-400 font-semibold">ponto dourado</span> para remover todos os horários deles.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setModoLimpeza(false); setDiasParaLimpar(new Set()) }}
+                    className="flex-1 h-9 rounded-xl border border-[#2C2C2C] text-zinc-400 text-[13px] font-semibold transition-all hover:border-zinc-500"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleLimparDias}
+                    disabled={diasParaLimpar.size === 0 || limpezaPending}
+                    className="flex-1 h-9 rounded-xl text-[13px] font-bold transition-all disabled:opacity-30 bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30"
+                  >
+                    {limpezaPending
+                      ? 'Removendo...'
+                      : diasParaLimpar.size === 0
+                        ? 'Selecione dias'
+                        : `Limpar ${diasParaLimpar.size} dia${diasParaLimpar.size > 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

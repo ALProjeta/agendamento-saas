@@ -73,3 +73,15 @@ export async function removerDisponibilidade(id: string): Promise<RemoverDisponi
   revalidatePath('/admin/horarios')
   return { ok: true }
 }
+
+export async function removerDisponibilidadesDias(datas: string[]): Promise<RemoverDisponibilidadeResult> {
+  try { await verificarAdmin() } catch { return { ok: false, erro: 'Não autorizado.' } }
+  if (datas.length === 0) return { ok: false, erro: 'Selecione pelo menos um dia.' }
+
+  const supabase = createAdminSupabaseClient()
+  const { error } = await supabase.from('disponibilidades').delete().in('data', datas)
+  if (error) return { ok: false, erro: error.message }
+
+  revalidatePath('/admin/horarios')
+  return { ok: true }
+}
