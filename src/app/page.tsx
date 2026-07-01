@@ -81,8 +81,11 @@ export default function Page() {
   // Step 1: load services
   useEffect(() => {
     setLoading(true)
-    supabase.from('servicos').select('*').eq('ativo', true).eq('apenas_manutencao', false).order('preco')
-      .then(({ data }) => { if (data) setServicos(data); setLoading(false) })
+    supabase.from('servicos').select('*').eq('ativo', true).order('preco')
+      .then(({ data }) => {
+        if (data) setServicos(data.filter(s => !s.apenas_manutencao))
+        setLoading(false)
+      })
     getConfigPublica().then(setConfig).catch(() => {})
   }, [supabase])
 

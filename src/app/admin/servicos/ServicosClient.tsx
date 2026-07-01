@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 export type Servico = {
-  id: string; nome: string; duracao_minutos: number; preco: number; ativo: boolean; apenas_manutencao: boolean
+  id: string; nome: string; duracao_minutos: number; preco: number; ativo: boolean; apenas_manutencao?: boolean
 }
 
 const GOLD = '#D3AF37'
@@ -24,7 +24,7 @@ function ServicoModal({ servico, onClose, onFeedback }: {
   const [nome, setNome]               = useState(servico?.nome ?? '')
   const [duracao, setDuracao]         = useState(servico ? String(servico.duracao_minutos) : '')
   const [preco, setPreco]             = useState(servico ? String(servico.preco) : '')
-  const [apenasManut, setApenasManut] = useState(servico?.apenas_manutencao ?? false)
+  const [apenasManut, setApenasManut] = useState(servico?.apenas_manutencao === true)
   const [erroLocal, setErroLocal]     = useState<string | null>(null)
   const [pending, setPending]         = useState(false)
   const primeiroInput = useRef<HTMLInputElement>(null)
