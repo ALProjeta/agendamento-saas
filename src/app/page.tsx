@@ -76,6 +76,7 @@ export default function Page() {
   const [submitting, setSubmitting]       = useState(false)
   const [erro, setErro]                   = useState<string | null>(null)
   const [shareCopiado, setShareCopiado]   = useState(false)
+  const [telefoneTocado, setTelefoneTocado] = useState(false)
   const [config, setConfig]               = useState<Record<string, string>>({})
 
   // Step 1: load services
@@ -185,7 +186,7 @@ export default function Page() {
 
   function reiniciar() {
     setStep(1); setServico(null); setData(null); setSlot(null)
-    setNome(''); setTelefone(''); setObservacao(''); setErro(null)
+    setNome(''); setTelefone(''); setObservacao(''); setErro(null); setTelefoneTocado(false)
   }
 
   function podePrevMes() {
@@ -437,12 +438,15 @@ export default function Page() {
                   id="tel"
                   type="tel"
                   value={telefone}
-                  onChange={e => setTelefone(e.target.value)}
-                  placeholder="(00) 00000-0000"
+                  onChange={e => { setTelefone(e.target.value); setTelefoneTocado(true) }}
+                  placeholder="DDD + número. Ex: 11999998888"
                   autoComplete="tel"
                   inputMode="tel"
-                  className={INPUT_CLS}
+                  className={cn(INPUT_CLS, telefoneTocado && telefone.replace(/\D/g,'').length > 0 && (telefone.replace(/\D/g,'').length < 10 || telefone.replace(/\D/g,'').length > 11) && 'border-red-500/60')}
                 />
+                {telefoneTocado && telefone.replace(/\D/g,'').length > 0 && (telefone.replace(/\D/g,'').length < 10 || telefone.replace(/\D/g,'').length > 11) && (
+                  <p className="text-[12px] text-red-400">Informe DDD + número (10 ou 11 dígitos). Ex: 11999998888</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="obs" className="text-[13px] font-semibold text-zinc-300">
@@ -475,7 +479,7 @@ export default function Page() {
 
             <button
               onClick={confirmar}
-              disabled={!nome.trim() || !telefone.trim() || submitting}
+              disabled={!nome.trim() || !telefone.trim() || submitting || (() => { const d = telefone.replace(/\D/g,'').length; return d < 10 || d > 11 })()}
               className="w-full h-14 rounded-xl text-[15px] font-bold tracking-wide transition-all duration-200 disabled:opacity-30 active:scale-[0.98]"
               style={{ backgroundColor: GOLD, color: '#000' }}
             >
