@@ -267,7 +267,7 @@ export default function Page() {
         {step === 1 && (
           <div className="py-10">
             <div className="flex justify-center mb-6">
-              <img src="/logo.jpeg" alt="Logo" style={{ width: '180px', height: 'auto' }} />
+              <img src="/logo.png" alt="Logo" style={{ width: '200px', height: 'auto' }} />
             </div>
             <div className="mb-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.25em] mb-3" style={{ color: GOLD }}>
