@@ -275,7 +275,7 @@ export default function ManutencaoClient({ config }: { config: Record<string, st
                 <span className="italic" style={{ color: GOLD }}>de cílios</span>
               </h1>
               <p className="text-sm text-zinc-500 mt-3 leading-relaxed">
-                Esta área é exclusiva para clientes que já realizaram um serviço no estúdio. Informe seu número de WhatsApp para continuar.
+                Esta área é exclusiva para clientes que já realizaram um serviço no studio. Informe seu número de WhatsApp para continuar.
               </p>
             </div>
 
@@ -287,7 +287,7 @@ export default function ManutencaoClient({ config }: { config: Record<string, st
                   value={telefoneBusca}
                   onChange={e => { setTelefoneBusca(e.target.value); setErroVerif(null) }}
                   onKeyDown={e => { if (e.key === 'Enter') verificar() }}
-                  placeholder="(00) 00000-0000"
+                  placeholder="DDD + número. Ex: 11999998888"
                   inputMode="tel"
                   autoComplete="tel"
                   className={INPUT_CLS}
