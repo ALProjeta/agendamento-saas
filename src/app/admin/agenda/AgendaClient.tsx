@@ -193,8 +193,10 @@ export default function AgendaClient({
     <div className="min-h-screen bg-[#0A0A0A]" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <header className="bg-black sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center">
-            <img src="/logo.jpeg" alt="Logo" style={{ height: '36px', width: 'auto' }} />
+          <div className="flex items-center gap-3">
+            <img src="/logo.jpeg" alt="Logo" style={{ height: '32px', width: 'auto' }} />
+            <div className="w-0.5 h-6 rounded-full" style={{ backgroundColor: GOLD }} />
+            <span className="text-white text-lg font-semibold" style={{ fontFamily: 'var(--font-playfair)' }}>{studioNome}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
