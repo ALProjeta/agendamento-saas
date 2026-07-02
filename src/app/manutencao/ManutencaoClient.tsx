@@ -236,9 +236,8 @@ export default function ManutencaoClient({ config }: { config: Record<string, st
       <header className="sticky top-0 z-20 bg-black">
         <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto' }} />
             <div className="w-0.5 h-6 rounded-full" style={{ backgroundColor: GOLD }} />
-            <span className="text-white text-base font-semibold tracking-tight" style={{ fontFamily: 'var(--font-playfair)' }}>
+            <span className="text-white text-lg font-semibold tracking-tight" style={{ fontFamily: 'var(--font-playfair)' }}>
               {studioNome}
             </span>
           </div>
@@ -264,13 +263,13 @@ export default function ManutencaoClient({ config }: { config: Record<string, st
         {step === 0 && (
           <div className="py-10">
             <div className="flex justify-center mb-8">
-              <img src="/logo.png" alt="Logo" style={{ width: '180px', height: 'auto' }} />
+              <img src="/logo.png" alt="Logo" style={{ width: '280px', height: 'auto' }} />
             </div>
             <div className="mb-8">
-              <p className="text-[11px] font-bold uppercase tracking-[0.25em] mb-3" style={{ color: GOLD }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2.5" style={{ color: GOLD }}>
                 Área exclusiva
               </p>
-              <h1 className="text-[2rem] font-bold leading-tight text-white" style={{ fontFamily: 'var(--font-playfair)' }}>
+              <h1 className="text-[1.6rem] font-bold leading-tight text-white" style={{ fontFamily: 'var(--font-playfair)' }}>
                 Manutenção<br />
                 <span className="italic" style={{ color: GOLD }}>de cílios</span>
               </h1>
