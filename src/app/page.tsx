@@ -270,14 +270,14 @@ export default function Page() {
         {/* STEP 1 — Serviço */}
         {step === 1 && (
           <div className="py-10">
-            <div className="flex justify-center mb-6">
-              <img src="/logo.png" alt="Logo" style={{ width: '200px', height: 'auto' }} />
+            <div className="flex justify-center mb-8">
+              <img src="/logo.png" alt="Logo" style={{ width: '280px', height: 'auto' }} />
             </div>
             <div className="mb-8">
-              <p className="text-[11px] font-bold uppercase tracking-[0.25em] mb-3" style={{ color: GOLD }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2.5" style={{ color: GOLD }}>
                 Agendamento Online
               </p>
-              <h1 className="text-[2rem] font-bold leading-tight text-white" style={{ fontFamily: 'var(--font-playfair)' }}>
+              <h1 className="text-[1.6rem] font-bold leading-tight text-white" style={{ fontFamily: 'var(--font-playfair)' }}>
                 O que você<br />
                 <span className="italic" style={{ color: GOLD }}>gostaria de fazer?</span>
               </h1>
