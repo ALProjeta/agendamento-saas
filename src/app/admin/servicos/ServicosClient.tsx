@@ -40,9 +40,13 @@ function ServicoModal({ servico, onClose, onFeedback }: {
 
   useEffect(() => {
     primeiroInput.current?.focus()
+    document.body.style.overflow = 'hidden'
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = ''
+      document.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
 
   function handleFotoSelecionada(e: React.ChangeEvent<HTMLInputElement>) {
@@ -124,7 +128,7 @@ function ServicoModal({ servico, onClose, onFeedback }: {
         {/* Crop UI */}
         {imagemParaCrop ? (
           <>
-            <div className="overflow-y-auto flex-1 p-5 flex flex-col items-center gap-4">
+            <div className="overflow-y-auto flex-1 p-5 flex flex-col items-center gap-4 overscroll-contain">
               <p className="text-[12px] text-zinc-500 text-center">Arraste e redimensione o círculo para enquadrar a imagem</p>
               <ReactCrop
                 crop={crop}
@@ -159,7 +163,7 @@ function ServicoModal({ servico, onClose, onFeedback }: {
         ) : (
           /* Form normal */
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4 overscroll-contain">
               <div className="space-y-1.5">
                 <Label className="text-[13px] font-semibold text-zinc-400">Nome do servico</Label>
                 <Input ref={primeiroInput} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Hidratacao capilar" className={INPUT_CLS} />
