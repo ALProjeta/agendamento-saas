@@ -1,6 +1,8 @@
 ﻿'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
+import 'react-image-crop/dist/ReactCrop.css'
 import { criarServico, atualizarServico, toggleAtivo, uploadFotoServico } from '@/app/actions/servicos'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,10 +29,14 @@ function ServicoModal({ servico, onClose, onFeedback }: {
   const [apenasManut, setApenasManut] = useState(servico?.apenas_manutencao === true)
   const [fotoUrl, setFotoUrl]         = useState<string | null>(servico?.foto_url ?? null)
   const [fotoUploading, setFotoUploading] = useState(false)
+  const [imagemParaCrop, setImagemParaCrop] = useState<string | null>(null)
+  const [crop, setCrop]               = useState<Crop>()
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
   const [erroLocal, setErroLocal]     = useState<string | null>(null)
   const [pending, setPending]         = useState(false)
   const primeiroInput = useRef<HTMLInputElement>(null)
   const fileInputRef  = useRef<HTMLInputElement>(null)
+  const imgRef        = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     primeiroInput.current?.focus()
@@ -39,18 +45,43 @@ function ServicoModal({ servico, onClose, onFeedback }: {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  async function handleFotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFotoSelecionada(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setImagemParaCrop(reader.result as string)
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const { width, height } = e.currentTarget
+    setCrop(centerCrop(makeAspectCrop({ unit: '%', width: 85 }, 1, width, height), width, height))
+  }
+
+  async function confirmarCrop() {
+    if (!imgRef.current || !completedCrop || completedCrop.width === 0) return
     setFotoUploading(true)
     setErroLocal(null)
-    const formData = new FormData()
-    formData.append('foto', file)
-    const r = await uploadFotoServico(formData)
-    if (r.ok) setFotoUrl(r.url)
-    else setErroLocal(r.erro)
-    setFotoUploading(false)
-    e.target.value = ''
+    const img    = imgRef.current
+    const scaleX = img.naturalWidth  / img.width
+    const scaleY = img.naturalHeight / img.height
+    const size   = 400
+    const canvas = document.createElement('canvas')
+    canvas.width  = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(img, completedCrop.x * scaleX, completedCrop.y * scaleY, completedCrop.width * scaleX, completedCrop.height * scaleY, 0, 0, size, size)
+    canvas.toBlob(async (blob) => {
+      if (!blob) { setFotoUploading(false); return }
+      const fd = new FormData()
+      fd.append('foto', blob, 'foto.jpg')
+      const r = await uploadFotoServico(fd)
+      if (r.ok) setFotoUrl(r.url)
+      else setErroLocal(r.erro)
+      setImagemParaCrop(null)
+      setFotoUploading(false)
+    }, 'image/jpeg', 0.92)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -72,11 +103,15 @@ function ServicoModal({ servico, onClose, onFeedback }: {
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md bg-[#111111] border border-[#1E1E1E] rounded-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
+
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#1A1A1A] shrink-0">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">{isEdit ? 'Editar servico' : 'Novo servico'}</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">
+              {imagemParaCrop ? 'Ajustar foto' : isEdit ? 'Editar servico' : 'Novo servico'}
+            </p>
             <h2 className="text-lg font-bold text-white mt-0.5" style={{ fontFamily: 'var(--font-playfair)' }}>
-              {isEdit ? servico.nome : 'Adicionar servico'}
+              {imagemParaCrop ? 'Corte circular' : isEdit ? servico.nome : 'Adicionar servico'}
             </h2>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-600 hover:bg-[#1E1E1E] hover:text-white transition-all">
@@ -85,87 +120,124 @@ function ServicoModal({ servico, onClose, onFeedback }: {
             </svg>
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-[13px] font-semibold text-zinc-400">Nome do servico</Label>
-            <Input ref={primeiroInput} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Hidratacao capilar" className={INPUT_CLS} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[13px] font-semibold text-zinc-400">Duracao (min)</Label>
-              <Input type="number" min="1" value={duracao} onChange={e => setDuracao(e.target.value)} placeholder="130" className={INPUT_CLS} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px] font-semibold text-zinc-400">Preco (R$)</Label>
-              <Input type="number" min="0" step="0.01" value={preco} onChange={e => setPreco(e.target.value)} placeholder="150,00" className={INPUT_CLS} />
-            </div>
-          </div>
-          {/* Foto */}
-          <div>
-            <label className="text-[13px] font-semibold text-zinc-400 block mb-2">Foto do serviço <span className="font-normal text-zinc-600">(opcional)</span></label>
-            <div
-              onClick={() => !fotoUploading && fileInputRef.current?.click()}
-              className="relative w-full h-36 rounded-xl border border-dashed border-[#2C2C2C] bg-[#181818] flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-[#D3AF37]/40 transition-all overflow-hidden"
-            >
-              {fotoUrl ? (
-                <img src={fotoUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
-              ) : (
-                <>
-                  <span className="text-3xl text-zinc-700">📷</span>
-                  <span className="text-[12px] text-zinc-600">Toque para adicionar foto</span>
-                </>
-              )}
-              {fotoUploading && (
-                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: GOLD, borderTopColor: 'transparent' }} />
-                </div>
-              )}
-            </div>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
-            {fotoUrl && !fotoUploading && (
-              <button type="button" onClick={() => setFotoUrl(null)} className="mt-1.5 text-[11px] text-zinc-600 hover:text-red-400 transition-colors">
-                Remover foto
-              </button>
-            )}
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setApenasManut(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all"
-            style={{
-              borderColor: apenasManut ? GOLD + '60' : '#2C2C2C',
-              backgroundColor: apenasManut ? GOLD + '10' : '#181818',
-            }}
-          >
-            <div className="text-left">
-              <p className="text-[13px] font-semibold" style={{ color: apenasManut ? GOLD : '#A1A1AA' }}>
-                Serviço de manutenção
-              </p>
-              <p className="text-[11px] text-zinc-600 mt-0.5">Visível apenas na página exclusiva para clientes recorrentes</p>
+        {/* Crop UI */}
+        {imagemParaCrop ? (
+          <>
+            <div className="overflow-y-auto flex-1 p-5 flex flex-col items-center gap-4">
+              <p className="text-[12px] text-zinc-500 text-center">Arraste e redimensione o círculo para enquadrar a imagem</p>
+              <ReactCrop
+                crop={crop}
+                onChange={c => setCrop(c)}
+                onComplete={c => setCompletedCrop(c)}
+                aspect={1}
+                circularCrop
+                keepSelection
+                className="rounded-xl overflow-hidden max-w-full"
+              >
+                <img
+                  ref={imgRef}
+                  src={imagemParaCrop}
+                  onLoad={onImageLoad}
+                  alt="Imagem para recortar"
+                  style={{ maxHeight: '52vh', maxWidth: '100%', display: 'block' }}
+                />
+              </ReactCrop>
+              <p className="text-[11px] text-zinc-600 text-center">A parte dentro do círculo será a foto exibida nos serviços</p>
             </div>
-            <div
-              className="relative w-10 h-5 rounded-full transition-all duration-200 flex-shrink-0 ml-3"
-              style={{ backgroundColor: apenasManut ? GOLD : '#2C2C2C' }}
-            >
-              <span
-                className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all duration-200 shadow-sm"
-                style={{ left: apenasManut ? '22px' : '2px' }}
-              />
+            <div className="px-6 py-4 border-t border-[#1A1A1A] flex gap-3 shrink-0">
+              <button type="button" onClick={() => setImagemParaCrop(null)}
+                className="flex-1 h-11 rounded-xl border border-[#2C2C2C] text-zinc-400 hover:text-white hover:border-[#3A3A3A] transition-all font-semibold">
+                Voltar
+              </button>
+              <button type="button" onClick={confirmarCrop} disabled={fotoUploading || !completedCrop}
+                className="flex-1 h-11 rounded-xl font-bold disabled:opacity-30 transition-all" style={{ backgroundColor: GOLD, color: '#000' }}>
+                {fotoUploading ? 'Enviando...' : 'Confirmar corte'}
+              </button>
             </div>
-          </button>
-          {erroLocal && <p className="text-sm text-red-400 flex items-center gap-1.5"><span>warning</span> {erroLocal}</p>}
-        </div>
-        <div className="px-6 py-4 border-t border-[#1A1A1A] flex gap-3 shrink-0">
-            <button type="button" onClick={onClose} className="flex-1 h-11 rounded-xl border border-[#2C2C2C] text-zinc-400 hover:text-white hover:border-[#3A3A3A] transition-all font-semibold">
-              Cancelar
-            </button>
-            <button type="submit" disabled={pending} className="flex-1 h-11 rounded-xl font-bold disabled:opacity-30 transition-all" style={{ backgroundColor: GOLD, color: '#000' }}>
-              {pending ? 'Salvando...' : isEdit ? 'Salvar' : 'Criar servico'}
-            </button>
-          </div>
-        </form>
+          </>
+        ) : (
+          /* Form normal */
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[13px] font-semibold text-zinc-400">Nome do servico</Label>
+                <Input ref={primeiroInput} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Hidratacao capilar" className={INPUT_CLS} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px] font-semibold text-zinc-400">Duracao (min)</Label>
+                  <Input type="number" min="1" value={duracao} onChange={e => setDuracao(e.target.value)} placeholder="130" className={INPUT_CLS} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px] font-semibold text-zinc-400">Preco (R$)</Label>
+                  <Input type="number" min="0" step="0.01" value={preco} onChange={e => setPreco(e.target.value)} placeholder="150,00" className={INPUT_CLS} />
+                </div>
+              </div>
+
+              {/* Foto */}
+              <div>
+                <label className="text-[13px] font-semibold text-zinc-400 block mb-2">
+                  Foto do serviço <span className="font-normal text-zinc-600">(opcional)</span>
+                </label>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-full h-32 rounded-xl border border-dashed border-[#2C2C2C] bg-[#181818] flex items-center gap-4 px-4 cursor-pointer hover:border-[#D3AF37]/40 transition-all overflow-hidden"
+                >
+                  {fotoUrl ? (
+                    <>
+                      <img src={fotoUrl} alt="Preview" className="w-16 h-16 rounded-full object-cover shrink-0 border-2" style={{ borderColor: GOLD + '60' }} />
+                      <div>
+                        <p className="text-[13px] text-white font-semibold">Foto cadastrada</p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">Toque para trocar</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 rounded-full bg-[#222] border border-dashed border-[#3A3A3A] flex items-center justify-center shrink-0">
+                        <span className="text-2xl text-zinc-600">📷</span>
+                      </div>
+                      <div>
+                        <p className="text-[13px] text-zinc-400 font-semibold">Adicionar foto</p>
+                        <p className="text-[11px] text-zinc-600 mt-0.5">Você poderá recortar em círculo</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoSelecionada} />
+                {fotoUrl && (
+                  <button type="button" onClick={() => setFotoUrl(null)} className="mt-1.5 text-[11px] text-zinc-600 hover:text-red-400 transition-colors">
+                    Remover foto
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setApenasManut(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all"
+                style={{ borderColor: apenasManut ? GOLD + '60' : '#2C2C2C', backgroundColor: apenasManut ? GOLD + '10' : '#181818' }}
+              >
+                <div className="text-left">
+                  <p className="text-[13px] font-semibold" style={{ color: apenasManut ? GOLD : '#A1A1AA' }}>Serviço de manutenção</p>
+                  <p className="text-[11px] text-zinc-600 mt-0.5">Visível apenas na página exclusiva para clientes recorrentes</p>
+                </div>
+                <div className="relative w-10 h-5 rounded-full transition-all duration-200 flex-shrink-0 ml-3" style={{ backgroundColor: apenasManut ? GOLD : '#2C2C2C' }}>
+                  <span className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all duration-200 shadow-sm" style={{ left: apenasManut ? '22px' : '2px' }} />
+                </div>
+              </button>
+              {erroLocal && <p className="text-sm text-red-400">{erroLocal}</p>}
+            </div>
+            <div className="px-6 py-4 border-t border-[#1A1A1A] flex gap-3 shrink-0">
+              <button type="button" onClick={onClose} className="flex-1 h-11 rounded-xl border border-[#2C2C2C] text-zinc-400 hover:text-white hover:border-[#3A3A3A] transition-all font-semibold">
+                Cancelar
+              </button>
+              <button type="submit" disabled={pending} className="flex-1 h-11 rounded-xl font-bold disabled:opacity-30 transition-all" style={{ backgroundColor: GOLD, color: '#000' }}>
+                {pending ? 'Salvando...' : isEdit ? 'Salvar' : 'Criar servico'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )
