@@ -104,9 +104,9 @@ function ServicoModal({ servico, onClose, onFeedback }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#111111] border border-[#1E1E1E] rounded-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-[#111111] border border-[#1E1E1E] rounded-2xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#1A1A1A] shrink-0">
