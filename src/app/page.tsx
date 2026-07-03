@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-type Servico    = { id: string; nome: string; duracao_minutos: number; preco: number }
+type Servico    = { id: string; nome: string; duracao_minutos: number; preco: number; foto_url?: string | null }
 type Disp       = { id: string; hora_inicio: string; hora_fim: string }
 type AgExistente = { hora_inicio: string; hora_fim: string }
 type VirtualSlot = { disponibilidade_id: string; hora_inicio: string; hora_fim: string }
@@ -297,12 +297,17 @@ export default function Page() {
                     onClick={() => { setServico(s); setStep(2) }}
                     className="w-full text-left group"
                   >
-                    <div className="flex items-center justify-between px-5 py-4 rounded-2xl border border-[#1E1E1E] bg-[#111111] hover:border-[#D3AF37]/50 hover:bg-[#D3AF37]/[0.04] transition-all duration-200">
-                      <div>
-                        <p className="font-semibold text-white text-[15px]">{s.nome}</p>
+                    <div className="flex items-center gap-3 px-3 py-3 rounded-2xl border border-[#1E1E1E] bg-[#111111] hover:border-[#D3AF37]/50 hover:bg-[#D3AF37]/[0.04] transition-all duration-200">
+                      {s.foto_url ? (
+                        <img src={s.foto_url} alt={s.nome} className="w-14 h-14 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-[#1A1A1A] border border-[#2C2C2C] shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-white text-[15px] truncate">{s.nome}</p>
                         <p className="text-[13px] text-zinc-500 mt-0.5">{s.duracao_minutos} min</p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-base font-bold" style={{ color: GOLD }}>{fmtBRL(s.preco)}</span>
                         <div className="w-7 h-7 rounded-full border border-[#2C2C2C] flex items-center justify-center group-hover:border-[#D3AF37] group-hover:bg-[#D3AF37] transition-all duration-200">
                           <svg className="w-3.5 h-3.5 text-zinc-500 group-hover:text-black transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

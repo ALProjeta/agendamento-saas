@@ -1,13 +1,13 @@
 ﻿'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { criarServico, atualizarServico, toggleAtivo } from '@/app/actions/servicos'
+import { criarServico, atualizarServico, toggleAtivo, uploadFotoServico } from '@/app/actions/servicos'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 export type Servico = {
-  id: string; nome: string; duracao_minutos: number; preco: number; ativo: boolean; apenas_manutencao?: boolean
+  id: string; nome: string; duracao_minutos: number; preco: number; ativo: boolean; apenas_manutencao?: boolean; foto_url?: string | null
 }
 
 const GOLD = '#D3AF37'
@@ -25,9 +25,12 @@ function ServicoModal({ servico, onClose, onFeedback }: {
   const [duracao, setDuracao]         = useState(servico ? String(servico.duracao_minutos) : '')
   const [preco, setPreco]             = useState(servico ? String(servico.preco) : '')
   const [apenasManut, setApenasManut] = useState(servico?.apenas_manutencao === true)
+  const [fotoUrl, setFotoUrl]         = useState<string | null>(servico?.foto_url ?? null)
+  const [fotoUploading, setFotoUploading] = useState(false)
   const [erroLocal, setErroLocal]     = useState<string | null>(null)
   const [pending, setPending]         = useState(false)
   const primeiroInput = useRef<HTMLInputElement>(null)
+  const fileInputRef  = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     primeiroInput.current?.focus()
@@ -36,6 +39,20 @@ function ServicoModal({ servico, onClose, onFeedback }: {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  async function handleFotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFotoUploading(true)
+    setErroLocal(null)
+    const formData = new FormData()
+    formData.append('foto', file)
+    const r = await uploadFotoServico(formData)
+    if (r.ok) setFotoUrl(r.url)
+    else setErroLocal(r.erro)
+    setFotoUploading(false)
+    e.target.value = ''
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const dur = parseInt(duracao), prc = parseFloat(preco.replace(',', '.'))
@@ -43,7 +60,9 @@ function ServicoModal({ servico, onClose, onFeedback }: {
     if (!dur || dur <= 0) return setErroLocal('Duracao deve ser maior que zero.')
     if (isNaN(prc) || prc <= 0) return setErroLocal('Preco deve ser maior que zero.')
     setErroLocal(null); setPending(true)
-    const result = isEdit ? await atualizarServico(servico.id, nome, dur, prc, apenasManut) : await criarServico(nome, dur, prc, apenasManut)
+    const result = isEdit
+      ? await atualizarServico(servico.id, nome, dur, prc, apenasManut, fotoUrl)
+      : await criarServico(nome, dur, prc, apenasManut, fotoUrl)
     setPending(false)
     if (result.ok) { onFeedback({ tipo: 'ok', msg: isEdit ? 'Servico atualizado!' : 'Servico criado!' }); onClose() }
     else setErroLocal(result.erro)
@@ -81,6 +100,35 @@ function ServicoModal({ servico, onClose, onFeedback }: {
               <Input type="number" min="0" step="0.01" value={preco} onChange={e => setPreco(e.target.value)} placeholder="150,00" className={INPUT_CLS} />
             </div>
           </div>
+          {/* Foto */}
+          <div>
+            <label className="text-[13px] font-semibold text-zinc-400 block mb-2">Foto do serviço <span className="font-normal text-zinc-600">(opcional)</span></label>
+            <div
+              onClick={() => !fotoUploading && fileInputRef.current?.click()}
+              className="relative w-full h-36 rounded-xl border border-dashed border-[#2C2C2C] bg-[#181818] flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-[#D3AF37]/40 transition-all overflow-hidden"
+            >
+              {fotoUrl ? (
+                <img src={fotoUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <>
+                  <span className="text-3xl text-zinc-700">📷</span>
+                  <span className="text-[12px] text-zinc-600">Toque para adicionar foto</span>
+                </>
+              )}
+              {fotoUploading && (
+                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: GOLD, borderTopColor: 'transparent' }} />
+                </div>
+              )}
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
+            {fotoUrl && !fotoUploading && (
+              <button type="button" onClick={() => setFotoUrl(null)} className="mt-1.5 text-[11px] text-zinc-600 hover:text-red-400 transition-colors">
+                Remover foto
+              </button>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => setApenasManut(v => !v)}
