@@ -71,8 +71,8 @@ function ServicoModal({ servico, onClose, onFeedback }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#111111] border border-[#1E1E1E] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#1A1A1A]">
+      <div className="relative w-full max-w-md bg-[#111111] border border-[#1E1E1E] rounded-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#1A1A1A] shrink-0">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">{isEdit ? 'Editar servico' : 'Novo servico'}</p>
             <h2 className="text-lg font-bold text-white mt-0.5" style={{ fontFamily: 'var(--font-playfair)' }}>
@@ -85,7 +85,8 @@ function ServicoModal({ servico, onClose, onFeedback }: {
             </svg>
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
           <div className="space-y-1.5">
             <Label className="text-[13px] font-semibold text-zinc-400">Nome do servico</Label>
             <Input ref={primeiroInput} value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Hidratacao capilar" className={INPUT_CLS} />
@@ -155,7 +156,8 @@ function ServicoModal({ servico, onClose, onFeedback }: {
             </div>
           </button>
           {erroLocal && <p className="text-sm text-red-400 flex items-center gap-1.5"><span>warning</span> {erroLocal}</p>}
-          <div className="flex gap-3 pt-1">
+        </div>
+        <div className="px-6 py-4 border-t border-[#1A1A1A] flex gap-3 shrink-0">
             <button type="button" onClick={onClose} className="flex-1 h-11 rounded-xl border border-[#2C2C2C] text-zinc-400 hover:text-white hover:border-[#3A3A3A] transition-all font-semibold">
               Cancelar
             </button>
