@@ -138,11 +138,15 @@ export default function HorariosClient({
   async function handleAdicionar() {
     if (duracaoJanela <= 0) return showFeedback({ tipo: 'erro', msg: 'Horário de fim deve ser após o início.' })
     setAddPending(true)
-    const r = await adicionarDisponibilidades(allDatas, horaIni, horaFim)
-    if (r.ok) {
-      showFeedback({ tipo: 'ok', msg: r.datas > 1 ? `Disponibilidade aberta em ${r.datas} dias!` : 'Disponibilidade adicionada!' })
-    } else {
-      showFeedback({ tipo: 'erro', msg: r.erro })
+    try {
+      const r = await adicionarDisponibilidades(allDatas, horaIni, horaFim)
+      if (r.ok) {
+        showFeedback({ tipo: 'ok', msg: r.datas > 1 ? `Disponibilidade aberta em ${r.datas} dias!` : 'Disponibilidade adicionada!' })
+      } else {
+        showFeedback({ tipo: 'erro', msg: r.erro })
+      }
+    } catch {
+      showFeedback({ tipo: 'erro', msg: 'Erro de conexão. Tente novamente.' })
     }
     setAddPending(false)
   }
@@ -150,8 +154,12 @@ export default function HorariosClient({
   function handleRemover(id: string) {
     setRemovePendingId(id)
     startTransition(async () => {
-      const r = await removerDisponibilidade(id)
-      if (!r.ok) showFeedback({ tipo: 'erro', msg: r.erro })
+      try {
+        const r = await removerDisponibilidade(id)
+        if (!r.ok) showFeedback({ tipo: 'erro', msg: r.erro })
+      } catch {
+        showFeedback({ tipo: 'erro', msg: 'Erro de conexão. Tente novamente.' })
+      }
       setRemovePendingId(null)
     })
   }
@@ -168,15 +176,19 @@ export default function HorariosClient({
   async function handleLimparDias() {
     if (diasParaLimpar.size === 0) return
     setLimpezaPending(true)
-    const r = await removerDisponibilidadesDias(Array.from(diasParaLimpar))
-    setLimpezaPending(false)
-    if (r.ok) {
-      showFeedback({ tipo: 'ok', msg: `Horários removidos de ${diasParaLimpar.size} dia${diasParaLimpar.size > 1 ? 's' : ''}!` })
-      setDiasParaLimpar(new Set())
-      setModoLimpeza(false)
-    } else {
-      showFeedback({ tipo: 'erro', msg: r.erro })
+    try {
+      const r = await removerDisponibilidadesDias(Array.from(diasParaLimpar))
+      if (r.ok) {
+        showFeedback({ tipo: 'ok', msg: `Horários removidos de ${diasParaLimpar.size} dia${diasParaLimpar.size > 1 ? 's' : ''}!` })
+        setDiasParaLimpar(new Set())
+        setModoLimpeza(false)
+      } else {
+        showFeedback({ tipo: 'erro', msg: r.erro })
+      }
+    } catch {
+      showFeedback({ tipo: 'erro', msg: 'Erro de conexão. Tente novamente.' })
     }
+    setLimpezaPending(false)
   }
 
   function renderDias() {

@@ -27,36 +27,40 @@ export async function adicionarDisponibilidades(
   if (fim <= ini) return { ok: false, erro: 'Horário de fim deve ser após o início.' }
   if (fim - ini < 15) return { ok: false, erro: 'Janela mínima de 15 minutos.' }
 
-  const supabase = createAdminSupabaseClient()
-  let totalCriadas = 0
-  let datasComCriacao = 0
+  try {
+    const supabase = createAdminSupabaseClient()
+    let totalCriadas = 0
+    let datasComCriacao = 0
 
-  for (const data of datas) {
-    const { data: existentes } = await supabase
-      .from('disponibilidades')
-      .select('id')
-      .eq('data', data)
-      .eq('hora_inicio', horaInicio)
-      .eq('hora_fim', horaFim)
+    for (const data of datas) {
+      const { data: existentes } = await supabase
+        .from('disponibilidades')
+        .select('id')
+        .eq('data', data)
+        .eq('hora_inicio', horaInicio)
+        .eq('hora_fim', horaFim)
 
-    if (existentes && existentes.length > 0) continue
+      if (existentes && existentes.length > 0) continue
 
-    const { error } = await supabase.from('disponibilidades').insert({
-      data,
-      hora_inicio: horaInicio,
-      hora_fim: horaFim,
-    })
+      const { error } = await supabase.from('disponibilidades').insert({
+        data,
+        hora_inicio: horaInicio,
+        hora_fim: horaFim,
+      })
 
-    if (error) return { ok: false, erro: error.message }
+      if (error) return { ok: false, erro: error.message }
 
-    totalCriadas++
-    datasComCriacao++
+      totalCriadas++
+      datasComCriacao++
+    }
+
+    if (totalCriadas === 0) return { ok: false, erro: 'Essas janelas de disponibilidade já existem.' }
+
+    revalidatePath('/admin/horarios')
+    return { ok: true, criadas: totalCriadas, datas: datasComCriacao }
+  } catch {
+    return { ok: false, erro: 'Erro de conexão. Verifique sua internet e tente novamente.' }
   }
-
-  if (totalCriadas === 0) return { ok: false, erro: 'Essas janelas de disponibilidade já existem.' }
-
-  revalidatePath('/admin/horarios')
-  return { ok: true, criadas: totalCriadas, datas: datasComCriacao }
 }
 
 export type RemoverDisponibilidadeResult =
@@ -66,22 +70,30 @@ export type RemoverDisponibilidadeResult =
 export async function removerDisponibilidade(id: string): Promise<RemoverDisponibilidadeResult> {
   try { await verificarAdmin() } catch { return { ok: false, erro: 'Não autorizado.' } }
 
-  const supabase = createAdminSupabaseClient()
-  const { error } = await supabase.from('disponibilidades').delete().eq('id', id)
-  if (error) return { ok: false, erro: error.message }
+  try {
+    const supabase = createAdminSupabaseClient()
+    const { error } = await supabase.from('disponibilidades').delete().eq('id', id)
+    if (error) return { ok: false, erro: error.message }
 
-  revalidatePath('/admin/horarios')
-  return { ok: true }
+    revalidatePath('/admin/horarios')
+    return { ok: true }
+  } catch {
+    return { ok: false, erro: 'Erro de conexão. Verifique sua internet e tente novamente.' }
+  }
 }
 
 export async function removerDisponibilidadesDias(datas: string[]): Promise<RemoverDisponibilidadeResult> {
   try { await verificarAdmin() } catch { return { ok: false, erro: 'Não autorizado.' } }
   if (datas.length === 0) return { ok: false, erro: 'Selecione pelo menos um dia.' }
 
-  const supabase = createAdminSupabaseClient()
-  const { error } = await supabase.from('disponibilidades').delete().in('data', datas)
-  if (error) return { ok: false, erro: error.message }
+  try {
+    const supabase = createAdminSupabaseClient()
+    const { error } = await supabase.from('disponibilidades').delete().in('data', datas)
+    if (error) return { ok: false, erro: error.message }
 
-  revalidatePath('/admin/horarios')
-  return { ok: true }
+    revalidatePath('/admin/horarios')
+    return { ok: true }
+  } catch {
+    return { ok: false, erro: 'Erro de conexão. Verifique sua internet e tente novamente.' }
+  }
 }
