@@ -14,6 +14,8 @@ type AgExistente = { hora_inicio: string; hora_fim: string }
 type VirtualSlot = { disponibilidade_id: string; hora_inicio: string; hora_fim: string }
 
 const GOLD     = '#D3AF37'
+// Funcionalidade de pagamento antecipado em dezembro expira em 01/01/2027 00:00 BRT (= 03:00 UTC)
+const FEATURE_DEZ_EXPIRA = new Date('2027-01-01T03:00:00Z')
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
 const STEP_MIN = 15
@@ -83,7 +85,12 @@ export default function Page() {
   const [pixCopiado,   setPixCopiado]     = useState(false)
   const [telefoneTocado, setTelefoneTocado] = useState(false)
   const [config, setConfig]               = useState<Record<string, string>>({})
-  const [modalDez, setModalDez]           = useState(() => { const m = new Date().getMonth(); return m === 10 || m === 11 })
+  const [modalDez, setModalDez]           = useState(() => {
+    const agora = new Date()
+    const featureAtiva = agora < new Date('2027-01-01T03:00:00Z')
+    const m = agora.getMonth()
+    return featureAtiva && (m === 10 || m === 11)
+  })
   const [preAgendado, setPreAgendado]     = useState(false)
   const [bannerPagOpen, setBannerPagOpen] = useState(true)
 
@@ -580,7 +587,7 @@ export default function Page() {
               </p>
             </div>
 
-            {data && data.slice(5, 7) === '12' && servico && preAgendado && bannerPagOpen && (
+            {new Date() < FEATURE_DEZ_EXPIRA && data && data.slice(5, 7) === '12' && servico && preAgendado && bannerPagOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
                 <div className="w-full max-w-sm rounded-3xl border border-amber-500/40 overflow-hidden" style={{ backgroundColor: '#131008' }}>
                   <div className="px-6 pt-6 pb-2 flex items-start gap-4">
@@ -632,7 +639,7 @@ export default function Page() {
               </div>
             </div>
 
-            {data && data.slice(5, 7) === '12' && servico && (
+            {new Date() < FEATURE_DEZ_EXPIRA && data && data.slice(5, 7) === '12' && servico && (
               <div className="rounded-2xl border border-[#D3AF37]/40 overflow-hidden mb-3" style={{ backgroundColor: `${GOLD}08` }}>
                 <div className="px-5 py-3.5 border-b border-[#D3AF37]/20">
                   <p className="text-[11px] font-bold uppercase tracking-[0.15em]" style={{ color: GOLD }}>

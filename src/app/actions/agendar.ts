@@ -96,7 +96,9 @@ export async function agendar(input: AgendarInput): Promise<AgendarResult> {
     return { ok: false, erro: 'Este horário acabou de ser reservado. Por favor, escolha outro.' }
   }
 
-  const isDezembroData = input.data.slice(5, 7) === '12'
+  // Brasília = UTC-3 → 01/01/2027 00:00 BRT = 03:00 UTC
+  const featureDezembroAtiva = new Date() < new Date('2027-01-01T03:00:00Z')
+  const isDezembroData = featureDezembroAtiva && input.data.slice(5, 7) === '12'
   const statusInicial  = isDezembroData ? 'pre_agendado' : 'confirmado'
 
   const { error } = await adminSupabase.from('agendamentos').insert({
