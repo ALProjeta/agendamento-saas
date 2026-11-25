@@ -24,3 +24,27 @@ export async function atualizarStatus(
   revalidatePath('/admin/pendencias')
   return { ok: true }
 }
+
+export async function confirmarPagamento(
+  id: string,
+): Promise<{ ok: boolean; erro?: string }> {
+  try {
+    await verificarAdmin()
+  } catch {
+    return { ok: false, erro: 'Não autorizado.' }
+  }
+
+  const supabase = createAdminSupabaseClient()
+  const { error } = await supabase
+    .from('agendamentos')
+    .update({ status: 'confirmado' })
+    .eq('id', id)
+    .eq('status', 'pre_agendado')
+
+  if (error) return { ok: false, erro: error.message }
+
+  revalidatePath('/admin/agenda')
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/admin/pendencias')
+  return { ok: true }
+}

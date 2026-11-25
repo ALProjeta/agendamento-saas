@@ -34,23 +34,27 @@ function computeSlots(
   ags: AgExistente[],
   duracaoMin: number,
 ): VirtualSlot[] {
+  const seen  = new Set<string>()
   const slots: VirtualSlot[] = []
   for (const disp of disps) {
     const winIni = toMin(disp.hora_inicio)
     const winFim = toMin(disp.hora_fim)
     let t = winIni
     while (t + duracaoMin <= winFim) {
-      const tFim = t + duracaoMin
+      const tFim    = t + duracaoMin
       const tStr    = minToTime(t)
       const tFimStr = minToTime(tFim)
-      const conflito = ags.some(ag => {
-        const agIni = toMin(ag.hora_inicio)
-        const agFim = toMin(ag.hora_fim)
-        return tStr < ag.hora_fim.slice(0,5) && tFimStr > ag.hora_inicio.slice(0,5)
-          || t < agFim && tFim > agIni
-      })
-      if (!conflito) {
-        slots.push({ disponibilidade_id: disp.id, hora_inicio: tStr, hora_fim: tFimStr })
+      if (!seen.has(tStr)) {
+        const conflito = ags.some(ag => {
+          const agIni = toMin(ag.hora_inicio)
+          const agFim = toMin(ag.hora_fim)
+          return tStr < ag.hora_fim.slice(0,5) && tFimStr > ag.hora_inicio.slice(0,5)
+            || t < agFim && tFim > agIni
+        })
+        if (!conflito) {
+          seen.add(tStr)
+          slots.push({ disponibilidade_id: disp.id, hora_inicio: tStr, hora_fim: tFimStr })
+        }
       }
       t += STEP_MIN
     }
@@ -76,8 +80,12 @@ export default function Page() {
   const [submitting, setSubmitting]       = useState(false)
   const [erro, setErro]                   = useState<string | null>(null)
   const [shareCopiado, setShareCopiado]   = useState(false)
+  const [pixCopiado,   setPixCopiado]     = useState(false)
   const [telefoneTocado, setTelefoneTocado] = useState(false)
   const [config, setConfig]               = useState<Record<string, string>>({})
+  const [modalDez, setModalDez]           = useState(() => { const m = new Date().getMonth(); return m === 10 || m === 11 })
+  const [preAgendado, setPreAgendado]     = useState(false)
+  const [bannerPagOpen, setBannerPagOpen] = useState(true)
 
   // Step 1: load services
   useEffect(() => {
@@ -173,7 +181,7 @@ export default function Page() {
       cliente_telefone: telefone,
       observacao,
     })
-    if (r.ok) setStep(5)
+    if (r.ok) { setPreAgendado(r.preAgendado); setBannerPagOpen(true); setStep(5) }
     else setErro(r.erro)
     setSubmitting(false)
   }
@@ -240,6 +248,46 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex flex-col">
+
+      {/* Modal aviso dezembro */}
+      {modalDez && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-5" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-3xl border border-[#D3AF37]/30 bg-[#111111] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1E1E1E]">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GOLD }} />
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Aviso — Dezembro</span>
+              </div>
+              <button
+                onClick={() => setModalDez(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-white text-[1.05rem] font-semibold leading-snug" style={{ fontFamily: 'var(--font-playfair)' }}>
+                Aviso especial para dezembro 🌟
+              </p>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Devido à alta demanda do fim de ano, os agendamentos em dezembro terão <strong className="text-white">50% do valor cobrado antecipadamente via PIX</strong>. O restante é pago presencialmente no dia do atendimento.
+              </p>
+              <div className="bg-[#0A0A0A] rounded-2xl px-4 py-3 border border-[#1E1E1E] text-sm text-zinc-400">
+                As instruções de pagamento aparecem logo após a confirmação.<br />Agradeço imensamente a compreensão! 🤍
+              </div>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setModalDez(false)}
+                className="w-full h-12 rounded-xl text-[14px] font-bold transition-all duration-200 active:scale-[0.98]"
+                style={{ backgroundColor: GOLD, color: '#000' }}
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <header className="sticky top-0 z-20 bg-black">
         <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
@@ -402,7 +450,7 @@ export default function Page() {
               <div className="grid grid-cols-3 gap-2.5">
                 {slots.map(s => (
                   <button
-                    key={s.hora_inicio}
+                    key={`${s.disponibilidade_id}-${s.hora_inicio}`}
                     onClick={() => { setSlot(s); setStep(4) }}
                     className="h-12 rounded-xl border border-[#2C2C2C] bg-[#111111] text-[13px] font-semibold text-zinc-300 hover:border-[#D3AF37]/60 hover:text-[#D3AF37] hover:bg-[#D3AF37]/[0.06] transition-all duration-150"
                   >
@@ -507,19 +555,58 @@ export default function Page() {
             <div className="mb-10 text-center">
               <div
                 className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 border-2"
-                style={{ borderColor: GOLD, backgroundColor: `${GOLD}15` }}
+                style={preAgendado
+                  ? { borderColor: '#f59e0b', backgroundColor: '#f59e0b15' }
+                  : { borderColor: GOLD, backgroundColor: `${GOLD}15` }}
               >
-                <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke={GOLD} strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+                {preAgendado ? (
+                  <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke={GOLD} strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
               </div>
               <h2 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'var(--font-playfair)' }}>
-                Confirmado!
+                {preAgendado ? 'Horário reservado!' : 'Confirmado!'}
               </h2>
               <p className="text-zinc-500 text-sm">
-                Te esperamos, <span className="text-zinc-300 font-semibold">{nome}</span>
+                {preAgendado
+                  ? <span>Pague o PIX abaixo para <span className="text-zinc-300 font-semibold">confirmar, {nome}</span></span>
+                  : <span>Te esperamos, <span className="text-zinc-300 font-semibold">{nome}</span></span>
+                }
               </p>
             </div>
+
+            {data && data.slice(5, 7) === '12' && servico && preAgendado && bannerPagOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+                <div className="w-full max-w-sm rounded-3xl border border-amber-500/40 overflow-hidden" style={{ backgroundColor: '#131008' }}>
+                  <div className="px-6 pt-6 pb-2 flex items-start gap-4">
+                    <span className="text-4xl leading-none shrink-0">⏳</span>
+                    <div>
+                      <p className="font-bold text-amber-300 text-[15px] leading-snug">Horário reservado!</p>
+                      <p className="text-xs text-amber-500/80 mt-0.5">Pagamento pendente</p>
+                    </div>
+                  </div>
+                  <div className="px-6 pb-5">
+                    <p className="text-sm text-zinc-300 leading-relaxed mt-3 mb-5">
+                      Para garantir sua vaga, pague{' '}
+                      <strong className="text-white">{fmtBRL(servico.preco / 2)}</strong>{' '}
+                      (50% do valor) via PIX. Seu agendamento só é confirmado após a profissional verificar o comprovante.
+                    </p>
+                    <button
+                      onClick={() => setBannerPagOpen(false)}
+                      className="w-full h-12 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+                      style={{ backgroundColor: '#f59e0b', color: '#000' }}
+                    >
+                      Ver instruções de pagamento ↓
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-2xl border border-[#1E1E1E] overflow-hidden mb-3">
               <div className="px-5 py-3.5 bg-[#111111] border-b border-[#1A1A1A]">
@@ -544,6 +631,85 @@ export default function Page() {
                 </div>
               </div>
             </div>
+
+            {data && data.slice(5, 7) === '12' && servico && (
+              <div className="rounded-2xl border border-[#D3AF37]/40 overflow-hidden mb-3" style={{ backgroundColor: `${GOLD}08` }}>
+                <div className="px-5 py-3.5 border-b border-[#D3AF37]/20">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.15em]" style={{ color: GOLD }}>
+                    Pagamento antecipado — Dezembro
+                  </p>
+                </div>
+                <div className="p-5 space-y-4">
+                  <p className="text-sm text-zinc-300 leading-relaxed">
+                    Para confirmar seu agendamento, pague{' '}
+                    <strong className="text-white">{fmtBRL(servico.preco / 2)}</strong>{' '}
+                    (50% do valor) via PIX <strong className="text-white">antes do dia</strong>.
+                  </p>
+
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="rounded-2xl overflow-hidden" style={{ maxWidth: 220, width: '100%' }}>
+                      <img
+                        src="/qr-pix-dezembro.jpg"
+                        alt="QR Code PIX"
+                        style={{ display: 'block', width: '100%', height: 'auto' }}
+                      />
+                    </div>
+                    {config.pix_chave && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(config.pix_chave)
+                          setPixCopiado(true)
+                          setTimeout(() => setPixCopiado(false), 2500)
+                        }}
+                        className="text-[13px] font-semibold px-4 py-2.5 rounded-xl border transition-all"
+                        style={{ borderColor: `${GOLD}60`, color: GOLD, backgroundColor: `${GOLD}10` }}
+                      >
+                        {pixCopiado ? '✓ Chave copiada!' : 'Copiar chave PIX'}
+                      </button>
+                    )}
+                    <p className="text-xs text-zinc-500 text-center">
+                      ANA BEATRIZ DE MENEZES PEREIRA{config.pix_chave ? ` · ${config.pix_chave}` : ''}
+                    </p>
+                  </div>
+
+                  {config.whatsapp && (
+                    <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl px-4 py-3 space-y-1.5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-500">Após pagar</p>
+                      <p className="text-sm text-zinc-300">
+                        Envie o comprovante para:{' '}
+                        <a
+                          href={`https://wa.me/55${config.whatsapp}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold underline underline-offset-2"
+                          style={{ color: GOLD }}
+                        >
+                          {config.whatsapp}
+                        </a>
+                      </p>
+                    </div>
+                  )}
+
+                  {waLink && (
+                    <div className="flex gap-2.5 items-start">
+                      <span className="text-zinc-500 shrink-0 mt-0.5">💳</span>
+                      <p className="text-sm text-zinc-400 leading-relaxed">
+                        Prefere pagar com <strong className="text-zinc-300">cartão</strong>?{' '}
+                        <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold underline underline-offset-2"
+                          style={{ color: GOLD }}
+                        >
+                          Entre em contato pelo WhatsApp
+                        </a>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 bg-[#D3AF37]/[0.06] border border-[#D3AF37]/20 rounded-2xl p-4 mb-3">
               <span className="text-[#D3AF37] text-base shrink-0">⏰</span>

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { atualizarStatus } from '@/app/actions/agenda'
+import { atualizarStatus, confirmarPagamento } from '@/app/actions/agenda'
 import { getHorariosDisponiveis, reagendar } from '@/app/actions/reagendar'
 import { verificarEncaixe, agendarManual, type EncaixeCheck } from '@/app/actions/encaixe'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ export type Agendamento = {
   id: string
   cliente_nome: string
   cliente_telefone: string
-  status: 'confirmado' | 'concluido' | 'cancelado' | 'no_show'
+  status: 'confirmado' | 'concluido' | 'cancelado' | 'no_show' | 'pre_agendado'
   data: string
   hora_inicio: string
   hora_fim: string
@@ -63,10 +63,11 @@ function labelData(dateStr: string) {
 }
 
 const STATUS_CFG = {
-  confirmado: { label: 'Confirmado',     dot: GOLD,      badge: 'bg-[#D3AF37]/10 border-[#D3AF37]/30 text-[#D3AF37]' },
-  concluido:  { label: 'Concluído',      dot: '#10b981', badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
-  cancelado:  { label: 'Cancelado',      dot: '#ef4444', badge: 'bg-red-500/10 border-red-500/30 text-red-400' },
-  no_show:    { label: 'Não compareceu', dot: '#71717a', badge: 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400' },
+  confirmado:   { label: 'Confirmado',        dot: GOLD,      badge: 'bg-[#D3AF37]/10 border-[#D3AF37]/30 text-[#D3AF37]' },
+  concluido:    { label: 'Concluído',         dot: '#10b981', badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' },
+  cancelado:    { label: 'Cancelado',         dot: '#ef4444', badge: 'bg-red-500/10 border-red-500/30 text-red-400' },
+  no_show:      { label: 'Não compareceu',    dot: '#71717a', badge: 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400' },
+  pre_agendado: { label: 'Aguard. pagamento', dot: '#f59e0b', badge: 'bg-amber-500/10 border-amber-500/30 text-amber-400' },
 }
 
 type Horario = { hora_inicio: string; hora_fim: string }
@@ -86,13 +87,14 @@ export default function AgendaClient({
 }: {
   diasData: DayData[]
   dateStr: string
-  modo: 'dia' | 'semana'
+  modo: 'dia' | 'semana' | 'mes'
   studioNome: string
   servicos: ServicoEncaixe[]
 }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const [encaixeAberto, setEncaixeAberto]             = useState(false)
   const [encNome, setEncNome]                         = useState('')
@@ -105,7 +107,12 @@ export default function AgendaClient({
   const [encChecking, setEncChecking]                 = useState(false)
   const [encSaving, setEncSaving]                     = useState(false)
   const [encErro, setEncErro]                         = useState<string | null>(null)
+  const [encSlots, setEncSlots]                       = useState<Horario[]>([])
+  const [encSlotsLoading, setEncSlotsLoading]         = useState(false)
+  const [encSlotSel, setEncSlotSel]                   = useState<Horario | null>(null)
+  const [encManual, setEncManual]                     = useState(false)
   const checkTimerRef                                 = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const slotsTimerRef                                 = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [reagendarTarget, setReagendarTarget]       = useState<Agendamento | null>(null)
   const [reagendarMes, setReagendarMes]             = useState<Date>(() => { const d = new Date(); d.setDate(1); return d })
@@ -119,6 +126,7 @@ export default function AgendaClient({
 
   const encServico = servicos.find(s => s.id === encServicoId) ?? null
   const encHoraFim = (() => {
+    if (encSlotSel) return encSlotSel.hora_fim
     if (!encHora || !encServico) return ''
     const [h, m] = encHora.split(':').map(Number)
     const total = h * 60 + m + encServico.duracao_minutos
@@ -126,6 +134,7 @@ export default function AgendaClient({
   })()
 
   useEffect(() => {
+    if (encSlotSel) { setEncCheck(null); return }
     if (!encData || !encHora || !encHoraFim) { setEncCheck(null); return }
     if (checkTimerRef.current) clearTimeout(checkTimerRef.current)
     setEncChecking(true)
@@ -135,21 +144,41 @@ export default function AgendaClient({
       setEncChecking(false)
     }, 500)
     return () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current) }
-  }, [encData, encHora, encHoraFim])
+  }, [encData, encHora, encHoraFim, encSlotSel])
+
+  useEffect(() => {
+    if (!encData || !encServicoId || !encServico) {
+      setEncSlots([]); setEncSlotSel(null); return
+    }
+    if (slotsTimerRef.current) clearTimeout(slotsTimerRef.current)
+    setEncSlotsLoading(true)
+    setEncSlotSel(null)
+    setEncHora('')
+    slotsTimerRef.current = setTimeout(async () => {
+      const slots = await getHorariosDisponiveis(encData, encServico.duracao_minutos)
+      setEncSlots(slots)
+      setEncSlotsLoading(false)
+    }, 300)
+    return () => { if (slotsTimerRef.current) clearTimeout(slotsTimerRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encData, encServicoId])
 
   function resetEncaixe() {
     setEncaixeAberto(false)
     setEncNome(''); setEncTelefone(''); setEncServicoId('')
     setEncData(dateStr); setEncHora(''); setEncObs('')
     setEncCheck(null); setEncErro(null)
+    setEncSlots([]); setEncSlotSel(null); setEncSlotsLoading(false); setEncManual(false)
   }
 
   async function handleEncaixe() {
-    if (!encNome.trim() || !encTelefone.trim() || !encServicoId || !encData || !encHora || !encHoraFim) {
+    const horaIni = encSlotSel?.hora_inicio ?? encHora
+    const horaFim = encSlotSel?.hora_fim    ?? encHoraFim
+    if (!encNome.trim() || !encTelefone.trim() || !encServicoId || !encData || !horaIni || !horaFim) {
       return setEncErro('Preencha todos os campos obrigatórios.')
     }
     setEncSaving(true)
-    const r = await agendarManual(encNome, encTelefone, encServicoId, encData, encHora, encHoraFim, encObs)
+    const r = await agendarManual(encNome, encTelefone, encServicoId, encData, horaIni, horaFim, encObs)
     setEncSaving(false)
     if (r.ok) { resetEncaixe() }
     else setEncErro(r.erro ?? 'Erro ao salvar.')
@@ -165,20 +194,36 @@ export default function AgendaClient({
   const weekLabel  = `${weekStart.getDate()} - ${weekEnd.getDate()} ${MESES_CURTO[weekEnd.getMonth()]}`
   const isThisWeek = hoje >= toStr(weekStart) && hoje <= toStr(weekEnd)
 
+  const [mesY, mesM]  = dateStr.split('-').map(Number)
+  const hojeDate      = parseDate(hoje)
+  const isCurrentMonth = mesY === hojeDate.getFullYear() && mesM === hojeDate.getMonth() + 1
+
   function navegar(dias: number) {
     const d = parseDate(dateStr); d.setDate(d.getDate() + dias)
     const params = modo === 'semana' ? `?data=${toStr(d)}&modo=semana` : `?data=${toStr(d)}`
     router.push(`/admin/agenda${params}`)
   }
 
-  function toggleModo() {
-    if (modo === 'dia') router.push(`/admin/agenda?data=${dateStr}&modo=semana`)
-    else router.push(`/admin/agenda?data=${dateStr}`)
+  function navegarMes(delta: number) {
+    const [y, m] = dateStr.split('-').map(Number)
+    const nd = new Date(y, m - 1 + delta, 1)
+    setSelectedDate(null)
+    router.push(`/admin/agenda?data=${toStr(nd)}&modo=mes`)
+  }
+
+  function irParaModo(novoModo: 'dia' | 'semana' | 'mes') {
+    setSelectedDate(null)
+    router.push(`/admin/agenda?data=${dateStr}&modo=${novoModo}`)
   }
 
   function handleStatus(id: string, status: 'concluido' | 'cancelado' | 'no_show') {
     setPendingId(id)
     startTransition(async () => { await atualizarStatus(id, status); setPendingId(null) })
+  }
+
+  function handleConfirmarPagamento(id: string) {
+    setPendingId(id)
+    startTransition(async () => { await confirmarPagamento(id); setPendingId(null) })
   }
 
   function abrirReagendar(ag: Agendamento) {
@@ -237,6 +282,53 @@ export default function AgendaClient({
     return cells
   }
 
+  function renderMes() {
+    const firstDow = new Date(mesY, mesM - 1, 1).getDay()
+    const totalDays = new Date(mesY, mesM, 0).getDate()
+    const cells: React.ReactNode[] = []
+    for (let i = 0; i < firstDow; i++) cells.push(<div key={`e${i}`} />)
+    for (let d = 1; d <= totalDays; d++) {
+      const ds       = `${mesY}-${pad(mesM)}-${pad(d)}`
+      const ags      = diasData.find(dd => dd.dateStr === ds)?.agendamentos ?? []
+      const count    = ags.filter(a => a.status !== 'cancelado').length
+      const hasPreAg = ags.some(a => a.status === 'pre_agendado')
+      const ehHoje   = ds === hoje
+      const isSel    = ds === selectedDate
+      const isPast   = ds < hoje
+      cells.push(
+        <button
+          key={ds}
+          onClick={() => setSelectedDate(isSel ? null : ds)}
+          className={cn(
+            'flex flex-col items-center justify-between py-1.5 rounded-xl transition-all min-h-[52px] w-full',
+            isSel && 'bg-[#D3AF37]/12',
+            !isSel && 'hover:bg-[#1E1E1E]',
+            isPast && !ehHoje && 'opacity-45',
+          )}
+          style={ehHoje ? { outline: `1.5px solid ${GOLD}30`, outlineOffset: '-1px' } : {}}
+        >
+          <span className="text-[13px] font-semibold leading-none" style={{ color: ehHoje ? GOLD : isSel ? GOLD : '#D4D4D8' }}>
+            {d}
+          </span>
+          <div className="flex flex-col items-center gap-0.5 mt-1">
+            {count > 0 && <span className="text-[9px] font-bold leading-none" style={{ color: GOLD }}>{count}</span>}
+            {hasPreAg && <div className="w-1 h-1 rounded-full bg-amber-400" />}
+          </div>
+        </button>
+      )
+    }
+    return (
+      <div className="bg-[#111111] rounded-2xl border border-[#1E1E1E] overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-[#1A1A1A]">
+          {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(wd => (
+            <div key={wd} className="text-center text-[10px] font-bold uppercase tracking-wider text-zinc-600 py-2.5">{wd}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1 p-2">{cells}</div>
+      </div>
+    )
+  }
+
   const NAV_BTN = 'w-10 h-10 rounded-full bg-[#111111] border border-[#2C2C2C] flex items-center justify-center text-zinc-400 hover:border-[#D3AF37] hover:text-[#D3AF37] transition-all text-xl'
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -246,37 +338,36 @@ export default function AgendaClient({
     const dx = e.changedTouches[0].clientX - touchRef.current.x
     const dy = e.changedTouches[0].clientY - touchRef.current.y
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      navegar(dx < 0 ? (modo === 'semana' ? 7 : 1) : (modo === 'semana' ? -7 : -1))
+      if (modo === 'mes') navegarMes(dx < 0 ? 1 : -1)
+      else navegar(dx < 0 ? (modo === 'semana' ? 7 : 1) : (modo === 'semana' ? -7 : -1))
     }
   }
 
   return (
     <div className="min-h-screen bg-[#0A0A0A]" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <header className="bg-black sticky top-0 z-10">
-        <div className="max-w-lg mx-auto px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto' }} />
-            <div className="w-0.5 h-6 rounded-full" style={{ backgroundColor: GOLD }} />
-            <span className="text-white text-lg font-semibold" style={{ fontFamily: 'var(--font-playfair)' }}>{studioNome}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setEncaixeAberto(true); setEncData(dateStr) }}
-              className="h-8 px-3 rounded-full text-[12px] font-bold hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: GOLD, color: '#000' }}
-            >
-              + Encaixe
-            </button>
-            <button
-              onClick={toggleModo}
-              className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] px-3 py-1.5 rounded-full border transition-all"
-              style={modo === 'semana'
-                ? { backgroundColor: GOLD, color: '#000', borderColor: GOLD }
-                : { color: '#71717A', borderColor: '#2C2C2C' }}
-            >
-              {modo === 'semana' ? 'Dia' : 'Semana'}
-            </button>
-            <span className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Agenda</span>
+        <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-2">
+          <img src="/logo.png" alt="Logo" style={{ height: '28px', width: 'auto', flexShrink: 0 }} />
+          <div className="w-px h-5 rounded-full flex-shrink-0" style={{ backgroundColor: GOLD }} />
+          <span className="text-white text-sm font-semibold truncate flex-1 min-w-0" style={{ fontFamily: 'var(--font-playfair)' }}>{studioNome}</span>
+          <button
+            onClick={() => { setEncaixeAberto(true); setEncData(dateStr) }}
+            className="h-8 px-3 rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity flex-shrink-0"
+            style={{ backgroundColor: GOLD, color: '#000' }}
+          >
+            + Encaixe
+          </button>
+          <div className="flex items-center rounded-full border border-[#2C2C2C] overflow-hidden flex-shrink-0">
+            {(['dia', 'semana', 'mes'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => irParaModo(m)}
+                className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all"
+                style={modo === m ? { backgroundColor: GOLD, color: '#000' } : { color: '#71717A' }}
+              >
+                {m === 'dia' ? 'Dia' : m === 'semana' ? 'Sem' : 'Mês'}
+              </button>
+            ))}
           </div>
         </div>
       </header>
@@ -284,9 +375,16 @@ export default function AgendaClient({
       <div className="max-w-lg mx-auto px-4 py-6 pb-safe-nav space-y-5">
 
         <div className="flex items-center justify-between">
-          <button onClick={() => navegar(modo === 'semana' ? -7 : -1)} className={NAV_BTN}>&#8249;</button>
+          <button onClick={() => modo === 'mes' ? navegarMes(-1) : navegar(modo === 'semana' ? -7 : -1)} className={NAV_BTN}>&#8249;</button>
           <div className="text-center">
-            {modo === 'semana' ? (
+            {modo === 'mes' ? (
+              <>
+                <p className="text-xl font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-playfair)' }}>
+                  {MESES[mesM - 1]} {mesY}
+                </p>
+                <p className="text-xs text-zinc-600 mt-0.5">Visão mensal</p>
+              </>
+            ) : modo === 'semana' ? (
               <>
                 <p className="text-xl font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-playfair)' }}>{weekLabel}</p>
                 <p className="text-xs text-zinc-600 mt-0.5">Semana completa</p>
@@ -297,9 +395,13 @@ export default function AgendaClient({
                 <p className="text-xs text-zinc-600 mt-0.5">{subtitulo}</p>
               </>
             )}
-            {(modo === 'dia' ? dateStr !== hoje : !isThisWeek) && (
+            {(modo === 'mes' ? !isCurrentMonth : modo === 'dia' ? dateStr !== hoje : !isThisWeek) && (
               <button
-                onClick={() => router.push(modo === 'semana' ? '/admin/agenda?modo=semana' : '/admin/agenda')}
+                onClick={() => {
+                  if (modo === 'mes') router.push(`/admin/agenda?data=${hoje}&modo=mes`)
+                  else if (modo === 'semana') router.push('/admin/agenda?modo=semana')
+                  else router.push('/admin/agenda')
+                }}
                 className="mt-1.5 text-[10px] font-bold px-3 py-0.5 rounded-full border transition-all inline-block"
                 style={{ borderColor: '#D3AF3760', color: '#D3AF37' }}
               >
@@ -307,13 +409,13 @@ export default function AgendaClient({
               </button>
             )}
           </div>
-          <button onClick={() => navegar(modo === 'semana' ? 7 : 1)} className={NAV_BTN}>&#8250;</button>
+          <button onClick={() => modo === 'mes' ? navegarMes(1) : navegar(modo === 'semana' ? 7 : 1)} className={NAV_BTN}>&#8250;</button>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-[#111111] rounded-2xl p-4 border border-[#1E1E1E]">
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">
-              {modo === 'semana' ? 'Esta semana' : 'Agendamentos'}
+              {modo === 'semana' ? 'Esta semana' : modo === 'mes' ? 'Este mês' : 'Agendamentos'}
             </p>
             <p className="text-4xl font-bold text-white leading-none" style={{ fontFamily: 'var(--font-playfair)' }}>{ativos.length}</p>
           </div>
@@ -323,7 +425,57 @@ export default function AgendaClient({
           </div>
         </div>
 
-        {modo === 'dia' ? (
+        {modo === 'mes' ? (
+          <>
+            {renderMes()}
+            {selectedDate && (() => {
+              const ags = diasData.find(d => d.dateStr === selectedDate)?.agendamentos ?? []
+              const d   = parseDate(selectedDate)
+              return (
+                <div className="bg-[#111111] rounded-2xl border border-[#1E1E1E] overflow-hidden">
+                  <div className="px-5 py-3 border-b border-[#1A1A1A] flex items-center justify-between">
+                    <p className="text-[13px] font-bold" style={{ color: GOLD }}>
+                      {SEMANA_LONGO[d.getDay()]}, {d.getDate()} de {MESES[d.getMonth()]}
+                    </p>
+                    <button
+                      onClick={() => router.push(`/admin/agenda?data=${selectedDate}`)}
+                      className="text-[11px] font-bold text-zinc-500 hover:text-white transition-colors"
+                    >
+                      Ver em dia →
+                    </button>
+                  </div>
+                  {ags.length === 0 ? (
+                    <div className="px-5 py-6 text-center">
+                      <p className="text-sm text-zinc-600">Nenhum agendamento neste dia.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#161616]">
+                      {ags.map(ag => {
+                        const cfg = STATUS_CFG[ag.status]
+                        return (
+                          <div key={ag.id} className={cn('flex items-center gap-3 px-5 py-3', ag.status === 'cancelado' && 'opacity-40')}>
+                            <div className="w-1 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.dot }} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-bold text-white">{fmtTime(ag.hora_inicio)}</span>
+                                <span className="text-[12px] text-zinc-300 truncate">{ag.cliente_nome}</span>
+                              </div>
+                              <p className="text-[11px] text-zinc-600 truncate">{ag.servico.nome}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className="text-[11px] font-semibold" style={{ color: GOLD }}>{fmtBRL(ag.servico.preco)}</span>
+                              <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full border', cfg.badge)}>{cfg.label}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </>
+        ) : modo === 'dia' ? (
           <>
             {diasData[0].agendamentos.length === 0 ? (
               <div className="bg-[#111111] rounded-2xl border border-[#1E1E1E] py-16 flex flex-col items-center gap-3 text-center">
@@ -386,6 +538,30 @@ export default function AgendaClient({
                           <div className="flex gap-2 items-start rounded-xl bg-[#1A1A1A] px-3 py-2.5">
                             <span className="text-zinc-500 text-xs mt-0.5 shrink-0">💬</span>
                             <p className="text-[12px] text-zinc-400 leading-relaxed">{ag.observacao}</p>
+                          </div>
+                        )}
+                        {ag.status === 'pre_agendado' && (
+                          <div className="space-y-2 pt-1">
+                            <div className="flex gap-2 items-start rounded-xl bg-amber-500/[0.07] border border-amber-500/20 px-3 py-2.5 mb-2">
+                              <span className="text-amber-400 text-xs shrink-0 mt-0.5">⏳</span>
+                              <p className="text-xs text-amber-300/80 leading-relaxed">Aguardando confirmação do PIX. Confirme após receber o comprovante.</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleConfirmarPagamento(ag.id)}
+                                disabled={!!pendingId}
+                                className="flex-1 h-9 rounded-xl text-xs font-bold border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all disabled:opacity-40"
+                              >
+                                ✓ Confirmar pagamento
+                              </button>
+                              <button
+                                onClick={() => handleStatus(ag.id, 'cancelado')}
+                                disabled={!!pendingId}
+                                className="flex-1 h-9 rounded-xl text-xs font-bold border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all disabled:opacity-40"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
                           </div>
                         )}
                         {ag.status === 'confirmado' && (
@@ -544,30 +720,91 @@ export default function AgendaClient({
                 </div>
               </div>
 
-              {/* Data e Hora */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Data *</label>
-                  <input
-                    type="date"
-                    value={encData}
-                    onChange={e => { setEncData(e.target.value); setEncCheck(null) }}
-                    className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Início *</label>
-                  <input
-                    type="time"
-                    value={encHora}
-                    onChange={e => { setEncHora(e.target.value); setEncCheck(null) }}
-                    className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all"
-                  />
-                </div>
+              {/* Data */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Data *</label>
+                <input
+                  type="date"
+                  value={encData}
+                  onChange={e => { setEncData(e.target.value); setEncCheck(null); setEncManual(false) }}
+                  className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all"
+                />
               </div>
 
-              {/* Aviso de disponibilidade */}
-              {encServicoId && encData && encHora && (
+              {/* Horário — picker de slots */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 block mb-2">Horário *</label>
+                {!encServicoId || !encData ? (
+                  <p className="text-xs text-zinc-600 py-2">Selecione o serviço e a data primeiro.</p>
+                ) : encSlotsLoading ? (
+                  <div className="flex items-center gap-2 text-zinc-500 text-sm py-2">
+                    <div className="w-3.5 h-3.5 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin" />
+                    Buscando horários disponíveis...
+                  </div>
+                ) : encSlots.length > 0 && !encManual ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-2">
+                      {encSlots.map(h => {
+                        const sel = encSlotSel?.hora_inicio === h.hora_inicio
+                        return (
+                          <button
+                            key={h.hora_inicio}
+                            type="button"
+                            onClick={() => { setEncSlotSel(h); setEncHora(h.hora_inicio) }}
+                            className="h-11 rounded-xl border font-bold text-sm transition-all"
+                            style={sel
+                              ? { backgroundColor: GOLD, color: '#000', borderColor: GOLD }
+                              : { backgroundColor: '#181818', color: '#A1A1AA', borderColor: '#2C2C2C' }}
+                          >
+                            {fmtTime(h.hora_inicio)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setEncManual(true); setEncSlotSel(null); setEncHora('') }}
+                      className="mt-2 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors underline underline-offset-2"
+                    >
+                      Informar horário manualmente
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {encSlots.length === 0 && !encManual && (
+                      <p className="text-xs text-amber-400/80 mb-2">Nenhum horário disponível nesta data via agenda online.</p>
+                    )}
+                    <input
+                      type="time"
+                      value={encHora}
+                      onChange={e => { setEncHora(e.target.value); setEncSlotSel(null) }}
+                      className="w-full h-11 rounded-xl border bg-[#181818] border-[#2C2C2C] px-3 text-sm font-semibold text-white focus:outline-none focus:border-[#D3AF37] transition-all"
+                    />
+                    {encSlots.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setEncManual(false); setEncHora('') }}
+                        className="mt-2 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors underline underline-offset-2"
+                      >
+                        ← Ver horários disponíveis
+                      </button>
+                    )}
+                  </>
+                )}
+                {encSlotSel && (
+                  <p className="text-[11px] text-emerald-500 mt-2">
+                    ✓ {fmtTime(encSlotSel.hora_inicio)} – {fmtTime(encSlotSel.hora_fim)} ({encServico?.duracao_minutos} min)
+                  </p>
+                )}
+                {!encSlotSel && encHoraFim && encServico && encHora && (
+                  <p className="text-[11px] text-zinc-600 mt-2">
+                    Término previsto às {encHoraFim} ({encServico.duracao_minutos} min)
+                  </p>
+                )}
+              </div>
+
+              {/* Aviso de disponibilidade — só para horário manual */}
+              {!encSlotSel && encData && encHora && (
                 <div className={cn(
                   'rounded-xl px-4 py-3 text-sm font-medium flex items-start gap-2.5',
                   encChecking && 'bg-[#1A1A1A] border border-[#2C2C2C] text-zinc-500',
@@ -576,23 +813,15 @@ export default function AgendaClient({
                   !encChecking && encCheck?.status === 'conflito' && 'bg-red-500/10 border border-red-500/30 text-red-400',
                 )}>
                   {encChecking ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" />
-                      <span>Verificando disponibilidade...</span>
-                    </>
+                    <><div className="w-3.5 h-3.5 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin shrink-0 mt-0.5" /><span>Verificando...</span></>
                   ) : encCheck?.status === 'livre' ? (
-                    <><span className="shrink-0">✓</span><span>Horário livre — dentro de uma janela de disponibilidade.</span></>
+                    <><span className="shrink-0">✓</span><span>Horário livre.</span></>
                   ) : encCheck?.status === 'sem-disponibilidade' ? (
-                    <><span className="shrink-0">⚠</span><span>Sem disponibilidade aberta para este horário. Clientes não conseguiriam agendar aqui, mas você pode prosseguir.</span></>
+                    <><span className="shrink-0">⚠</span><span>Fora da janela de disponibilidade. Você pode prosseguir mesmo assim.</span></>
                   ) : encCheck?.status === 'conflito' ? (
-                    <><span className="shrink-0">✗</span><span>Conflito: <strong>{(encCheck as { conflitoCom: string }).conflitoCom}</strong> já tem agendamento neste horário. Você pode prosseguir mesmo assim.</span></>
+                    <><span className="shrink-0">✗</span><span>Conflito com <strong>{(encCheck as { conflitoCom: string }).conflitoCom}</strong>. Você pode prosseguir mesmo assim.</span></>
                   ) : null}
                 </div>
-              )}
-              {encHoraFim && encServico && (
-                <p className="text-[11px] text-zinc-600 -mt-2">
-                  Término previsto às {encHoraFim} ({encServico.duracao_minutos} min)
-                </p>
               )}
 
               {/* Cliente */}
@@ -644,7 +873,7 @@ export default function AgendaClient({
                 </button>
                 <button
                   onClick={handleEncaixe}
-                  disabled={encSaving || !encNome.trim() || !encTelefone.trim() || !encServicoId || !encData || !encHora}
+                  disabled={encSaving || !encNome.trim() || !encTelefone.trim() || !encServicoId || !encData || (!encSlotSel && !encHora)}
                   className="flex-1 h-12 rounded-xl font-bold transition-all disabled:opacity-30"
                   style={{ backgroundColor: GOLD, color: '#000' }}
                 >

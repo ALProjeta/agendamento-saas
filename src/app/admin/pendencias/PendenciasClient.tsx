@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { atualizarStatus } from '@/app/actions/agenda'
+import { atualizarStatus, confirmarPagamento } from '@/app/actions/agenda'
 import { cn } from '@/lib/utils'
 
 export type Pendencia = {
@@ -29,27 +29,48 @@ type Status = 'concluido' | 'cancelado' | 'no_show'
 
 export default function PendenciasClient({
   pendencias,
+  preAgendados,
   studioNome,
 }: {
   pendencias: Pendencia[]
+  preAgendados: Pendencia[]
   studioNome: string
 }) {
   const [, startTransition] = useTransition()
-  const [resolvidos, setResolvidos] = useState<Set<string>>(new Set())
-  const [pendingMap, setPendingMap] = useState<Record<string, Status>>({})
+  const [resolvidos, setResolvidos]           = useState<Set<string>>(new Set())
+  const [pendingMap, setPendingMap]           = useState<Record<string, Status>>({})
+  const [pendingPagMap, setPendingPagMap]     = useState<Record<string, 'confirmando' | 'cancelando'>>({})
+  const [pagResolvidos, setPagResolvidos]     = useState<Set<string>>(new Set())
 
   function handleAtualizarStatus(id: string, status: Status) {
     setPendingMap(prev => ({ ...prev, [id]: status }))
     startTransition(async () => {
       const r = await atualizarStatus(id, status)
-      if (r.ok) {
-        setResolvidos(prev => new Set([...prev, id]))
-      }
+      if (r.ok) setResolvidos(prev => new Set([...prev, id]))
       setPendingMap(prev => { const next = { ...prev }; delete next[id]; return next })
     })
   }
 
-  const visiveis = pendencias.filter(p => !resolvidos.has(p.id))
+  function handleConfirmarPagamento(id: string) {
+    setPendingPagMap(prev => ({ ...prev, [id]: 'confirmando' }))
+    startTransition(async () => {
+      const r = await confirmarPagamento(id)
+      if (r.ok) setPagResolvidos(prev => new Set([...prev, id]))
+      setPendingPagMap(prev => { const next = { ...prev }; delete next[id]; return next })
+    })
+  }
+
+  function handleCancelarPreAgendado(id: string) {
+    setPendingPagMap(prev => ({ ...prev, [id]: 'cancelando' }))
+    startTransition(async () => {
+      const r = await atualizarStatus(id, 'cancelado')
+      if (r.ok) setPagResolvidos(prev => new Set([...prev, id]))
+      setPendingPagMap(prev => { const next = { ...prev }; delete next[id]; return next })
+    })
+  }
+
+  const visiveis       = pendencias.filter(p => !resolvidos.has(p.id))
+  const preVisíveis    = preAgendados.filter(p => !pagResolvidos.has(p.id))
 
   return (
     <div className="min-h-screen bg-[#0A0A0A]">
@@ -65,6 +86,73 @@ export default function PendenciasClient({
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 pb-safe-nav space-y-5">
+
+        {/* Pré-agendados aguardando confirmação de pagamento */}
+        {preVisíveis.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/30 overflow-hidden">
+            <div className="px-5 py-3.5 bg-amber-500/[0.07] border-b border-amber-500/20 flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-amber-400">
+                Aguardando confirmação de pagamento
+              </p>
+              <span className="text-[11px] font-bold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
+                {preVisíveis.length}
+              </span>
+            </div>
+            <div className="divide-y divide-[#1A1A1A]">
+              {preVisíveis.map(p => {
+                const isPending = p.id in pendingPagMap
+                return (
+                  <div key={p.id} className={cn('px-5 py-4 bg-[#111111] transition-opacity', isPending && 'opacity-40')}>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <p className="text-[13px] font-bold text-white leading-snug" style={{ fontFamily: 'var(--font-playfair)' }}>
+                          {p.cliente_nome}
+                        </p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{p.servico_nome}</p>
+                        {p.cliente_telefone && (
+                          <a
+                            href={`https://wa.me/55${p.cliente_telefone.replace(/\D/g, '')}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="text-[11px] text-emerald-500 hover:text-emerald-400 transition-colors mt-0.5 inline-block"
+                          >
+                            {p.cliente_telefone}
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[12px] font-semibold text-amber-400">
+                          {fmtTime(p.hora_inicio)} – {fmtTime(p.hora_fim)}
+                        </p>
+                        <p className="text-[11px] text-zinc-600 mt-0.5">{fmtData(p.data)}</p>
+                      </div>
+                    </div>
+                    {p.observacao && (
+                      <p className="text-[11px] text-zinc-600 italic mb-3 border-l-2 border-[#2C2C2C] pl-2">
+                        {p.observacao}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleConfirmarPagamento(p.id)}
+                        disabled={isPending}
+                        className="flex-1 h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                      >
+                        {isPending && pendingPagMap[p.id] === 'confirmando' ? '...' : '✓ Confirmar pagamento'}
+                      </button>
+                      <button
+                        onClick={() => handleCancelarPreAgendado(p.id)}
+                        disabled={isPending}
+                        className="flex-1 h-9 rounded-xl text-[12px] font-bold transition-all disabled:opacity-30 border border-red-500/30 text-red-400 bg-red-500/5 hover:bg-red-500/15"
+                      >
+                        {isPending && pendingPagMap[p.id] === 'cancelando' ? '...' : '✗ Cancelar'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Contador */}
         <div className="bg-[#111111] rounded-2xl border border-[#1E1E1E] p-5">

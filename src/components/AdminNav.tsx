@@ -87,10 +87,13 @@ export default function AdminNav() {
   const pathname = usePathname()
   const [pending, startTransition] = useTransition()
 
-  const [todayCount, setTodayCount] = useState(0)
-  const [pendingCount, setPendingCount] = useState(0)
-  const [toast, setToast] = useState<string | null>(null)
-  const prevCountRef = useRef(-1)
+  const [todayCount, setTodayCount]         = useState(0)
+  const [pendingCount, setPendingCount]     = useState(0)
+  const [preAgendadoCount, setPreAgCount]   = useState(0)
+  const [toast, setToast]                   = useState<string | null>(null)
+  const [toastType, setToastType]           = useState<'novo' | 'pre'>('novo')
+  const prevTodayRef  = useRef(-1)
+  const prevPreRef    = useRef(-1)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -99,7 +102,7 @@ export default function AdminNav() {
     async function fetchCount() {
       try {
         const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
-        const [{ count: todayCnt }, { count: pendCnt }] = await Promise.all([
+        const [{ count: todayCnt }, { count: pendCnt }, { count: preCnt }] = await Promise.all([
           supabase
             .from('agendamentos')
             .select('*', { count: 'exact', head: true })
@@ -109,17 +112,33 @@ export default function AdminNav() {
             .from('agendamentos')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'confirmado')
-            .lt('data', hoje),
+            .lte('data', hoje),
+          supabase
+            .from('agendamentos')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pre_agendado'),
         ])
-        const n = todayCnt ?? 0
-        if (prevCountRef.current >= 0 && n > prevCountRef.current) {
+
+        const n   = todayCnt ?? 0
+        const pre = preCnt  ?? 0
+
+        if (prevPreRef.current >= 0 && pre > prevPreRef.current) {
           if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+          setToastType('pre')
+          setToast('Pré-agendamento aguardando confirmação de pagamento!')
+          toastTimerRef.current = setTimeout(() => setToast(null), 7000)
+        } else if (prevTodayRef.current >= 0 && n > prevTodayRef.current) {
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+          setToastType('novo')
           setToast('Novo agendamento recebido!')
           toastTimerRef.current = setTimeout(() => setToast(null), 5000)
         }
-        prevCountRef.current = n
+
+        prevTodayRef.current = n
+        prevPreRef.current   = pre
         setTodayCount(n)
         setPendingCount(pendCnt ?? 0)
+        setPreAgCount(pre)
       } catch {
         // ignore errors silently
       }
@@ -142,10 +161,12 @@ export default function AdminNav() {
       {toast && (
         <div className="fixed top-4 left-4 right-4 z-[100] flex justify-center pointer-events-none">
           <div
-            className="flex items-center gap-2.5 px-5 py-3 rounded-full shadow-2xl font-bold text-sm"
-            style={{ backgroundColor: GOLD, color: '#000' }}
+            className="flex items-center gap-2.5 px-5 py-3 rounded-2xl shadow-2xl font-bold text-sm max-w-sm text-center"
+            style={toastType === 'pre'
+              ? { backgroundColor: '#f59e0b', color: '#000' }
+              : { backgroundColor: GOLD, color: '#000' }}
           >
-            <span>&#128276;</span>
+            <span>{toastType === 'pre' ? '⏳' : '🔔'}</span>
             <span>{toast}</span>
           </div>
         </div>
@@ -163,8 +184,14 @@ export default function AdminNav() {
 
           {NAV_ITEMS.map(item => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/')
-            const badgeCount = item.badge === 'today' ? todayCount : item.badge === 'pending' ? pendingCount : 0
-            const badgeColor = item.badge === 'pending' ? '#EF4444' : GOLD
+            const badgeCount = item.badge === 'today'
+              ? todayCount
+              : item.badge === 'pending'
+                ? pendingCount + preAgendadoCount
+                : 0
+            const badgeColor = item.badge === 'pending'
+              ? (pendingCount > 0 ? '#EF4444' : '#f59e0b')
+              : GOLD
             return (
               <Link
                 key={item.href}

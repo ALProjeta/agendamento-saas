@@ -21,6 +21,7 @@ export default async function AgendaPage({
   const { data: dateParam, modo } = await searchParams
   const dateStr = dateParam ?? new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
   const isSemana = modo === 'semana'
+  const isMes    = modo === 'mes'
 
   const supabase = createAdminSupabaseClient()
   const studioNome = await getStudioNome()
@@ -68,6 +69,41 @@ export default async function AgendaPage({
     }
 
     diasData = days.map(d => ({ dateStr: d, agendamentos: agByDate.get(d) ?? [] }))
+  } else if (isMes) {
+    const [y, m] = dateStr.split('-').map(Number)
+    const firstDay = `${y}-${pad(m)}-01`
+    const lastDayDate = new Date(y, m, 0)
+    const lastDay = toStr(lastDayDate)
+
+    const { data: rows } = await supabase
+      .from('agendamentos')
+      .select('id, cliente_nome, cliente_telefone, status, data, hora_inicio, hora_fim, observacao, servico:servico_id(nome, duracao_minutos, preco)')
+      .gte('data', firstDay)
+      .lte('data', lastDay)
+      .order('data')
+      .order('hora_inicio')
+
+    const totalDays = lastDayDate.getDate()
+    const days = Array.from({ length: totalDays }, (_, i) => `${y}-${pad(m)}-${pad(i + 1)}`)
+
+    const agByDate = new Map<string, Agendamento[]>(days.map(d => [d, []]))
+    for (const row of (rows ?? [])) {
+      const list = agByDate.get(row.data)
+      if (!list) continue
+      list.push({
+        id:               row.id,
+        cliente_nome:     row.cliente_nome,
+        cliente_telefone: row.cliente_telefone,
+        status:           row.status as Agendamento['status'],
+        data:             row.data,
+        hora_inicio:      row.hora_inicio,
+        hora_fim:         row.hora_fim,
+        observacao:       row.observacao,
+        servico: (Array.isArray(row.servico) ? row.servico[0] : row.servico) as Agendamento['servico'],
+      })
+    }
+
+    diasData = days.map(d => ({ dateStr: d, agendamentos: agByDate.get(d) ?? [] }))
   } else {
     const { data: rows } = await supabase
       .from('agendamentos')
@@ -89,5 +125,5 @@ export default async function AgendaPage({
     diasData = [{ dateStr, agendamentos }]
   }
 
-  return <AgendaClient diasData={diasData} dateStr={dateStr} modo={isSemana ? 'semana' : 'dia'} studioNome={studioNome} servicos={servicos} />
+  return <AgendaClient diasData={diasData} dateStr={dateStr} modo={isMes ? 'mes' : isSemana ? 'semana' : 'dia'} studioNome={studioNome} servicos={servicos} />
 }

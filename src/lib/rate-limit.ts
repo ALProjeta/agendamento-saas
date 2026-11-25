@@ -5,6 +5,7 @@ export async function checkRateLimit(
   maxAttempts = 5,
   windowMs = 15 * 60 * 1000,
 ): Promise<{ ok: boolean; minutosRestantes?: number }> {
+  if (process.env.NODE_ENV === 'development') return { ok: true }
   const supabase = createAdminSupabaseClient()
   const now = new Date()
   const resetAt = new Date(now.getTime() + windowMs)

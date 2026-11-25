@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createAdminSupabaseClient } from '@/lib/supabase-admin'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { enviarTelegram } from '@/lib/telegram'
 
 export type AgendarInput = {
   disponibilidade_id: string
@@ -16,7 +17,7 @@ export type AgendarInput = {
 }
 
 export type AgendarResult =
-  | { ok: true }
+  | { ok: true; preAgendado: boolean }
   | { ok: false; erro: string }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -58,7 +59,7 @@ export async function agendar(input: AgendarInput): Promise<AgendarResult> {
 
   const { data: servico } = await supabase
     .from('servicos')
-    .select('duracao_minutos')
+    .select('duracao_minutos, nome')
     .eq('id', input.servico_id)
     .eq('ativo', true)
     .single()
@@ -95,6 +96,9 @@ export async function agendar(input: AgendarInput): Promise<AgendarResult> {
     return { ok: false, erro: 'Este horário acabou de ser reservado. Por favor, escolha outro.' }
   }
 
+  const isDezembroData = input.data.slice(5, 7) === '12'
+  const statusInicial  = isDezembroData ? 'pre_agendado' : 'confirmado'
+
   const { error } = await adminSupabase.from('agendamentos').insert({
     data:             input.data,
     hora_inicio:      input.hora_inicio,
@@ -102,7 +106,7 @@ export async function agendar(input: AgendarInput): Promise<AgendarResult> {
     servico_id:       input.servico_id,
     cliente_nome:     nomeTrimmed,
     cliente_telefone: telDigits,
-    status:           'confirmado',
+    status:           statusInicial,
     observacao:       input.observacao?.trim() || null,
   })
 
@@ -113,5 +117,35 @@ export async function agendar(input: AgendarInput): Promise<AgendarResult> {
     return { ok: false, erro: 'Erro ao confirmar agendamento. Tente novamente.' }
   }
 
-  return { ok: true }
+  const [dia, mes, ano] = [
+    input.data.slice(8, 10),
+    input.data.slice(5, 7),
+    input.data.slice(0, 4),
+  ]
+  const msgTelegram = isDezembroData
+    ? [
+        '⏳ <b>Pré-agendamento — aguardando confirmação de pagamento</b>',
+        '',
+        `👤 <b>Cliente:</b> ${nomeTrimmed}`,
+        `📞 <b>Telefone:</b> ${telDigits}`,
+        `✂️ <b>Serviço:</b> ${servico.nome}`,
+        `📆 <b>Data:</b> ${dia}/${mes}/${ano}`,
+        `⏰ <b>Horário:</b> ${input.hora_inicio.slice(0, 5)} – ${horaFim.slice(0, 5)}`,
+        ...(input.observacao?.trim() ? [`📝 <b>Obs:</b> ${input.observacao.trim()}`] : []),
+        '',
+        '💳 Confirme o pagamento do PIX no painel de pendências.',
+      ].join('\n')
+    : [
+        '📅 <b>Novo agendamento!</b>',
+        '',
+        `👤 <b>Cliente:</b> ${nomeTrimmed}`,
+        `📞 <b>Telefone:</b> ${telDigits}`,
+        `✂️ <b>Serviço:</b> ${servico.nome}`,
+        `📆 <b>Data:</b> ${dia}/${mes}/${ano}`,
+        `⏰ <b>Horário:</b> ${input.hora_inicio.slice(0, 5)} – ${horaFim.slice(0, 5)}`,
+        ...(input.observacao?.trim() ? [`📝 <b>Obs:</b> ${input.observacao.trim()}`] : []),
+      ].join('\n')
+  await enviarTelegram(msgTelegram)
+
+  return { ok: true, preAgendado: isDezembroData }
 }
